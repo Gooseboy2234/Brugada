@@ -1,0 +1,8 @@
+[
+  {
+    "id": "wt-s2", "campaign_id": "r104q-replicates", "tag": "WT · seed 2", "kind": "md",
+    "status": "running", "units_done": 0, "units_total": 100, "unit_label": "ns",
+    "rate_per_day": 611, "rate_window_minutes": 20, "cost_so_far": 0.0,
+    "metric": { "label": "R104–D84 min distance", "value": 0.0, "unit": "Å", "note": "occupancy <4 Å", "sparkline": [] }
+  }
+]

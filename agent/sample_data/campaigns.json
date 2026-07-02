@@ -1,0 +1,46 @@
+[
+  {
+    "id": "r104q-replicates",
+    "rig_id": "home",
+    "title": "R104Q · MD replicates",
+    "hypothesis": "R104Q destabilizes the NTD core; D84N rescues it.",
+    "funnel": [
+      { "index": 1, "label": "Structure & mechanism", "status": "done", "detail": "8VYJ · R104–D84 3.79 Å salt bridge", "caveat": "A crystal structure is a static snapshot, not proof of dynamics." },
+      { "index": 2, "label": "Variant scoring", "status": "done", "detail": "ESM −3.57 · AM 0.869 · REVEL 0.967", "caveat": "Predictors agree R104Q is damaging, but they don't give a mechanism." },
+      { "index": 3, "label": "Static models WT/mut/rescue", "status": "done", "detail": "built + minimized", "caveat": "Minimized models are starting points; behavior only shows under MD." },
+      { "index": 4, "label": "Flagship MD (n=1)", "status": "done", "detail": "core RMSF 3.98 → 5.46 → 3.09 ✓ mechanism", "caveat": "A single replicate can be a lucky trajectory — needs repeats." },
+      { "index": 5, "label": "MD replicates (n=3)", "status": "active", "detail": "error bars — the current gap", "caveat": "This is where a real signal separates from noise." },
+      { "index": 6, "label": "FEP ΔΔG_fold", "status": "upcoming", "detail": "thermodynamic number on the hypothesis", "caveat": "FEP is rigorous but sensitive to setup; convergence must be checked." },
+      { "index": 7, "label": "Chaperone re-rank (DiffDock)", "status": "upcoming", "detail": "size-bias-free mexiletine test", "caveat": "Docking ranks poses, it does not prove binding in a cell." },
+      { "index": 8, "label": "SIMULATION WALL", "status": "upcoming", "is_wall": true, "caveat": "Everything above is what a GPU can tell you. Nothing below is." },
+      { "index": 9, "label": "Wet-lab: patch-clamp / trafficking", "status": "upcoming", "detail": "dominant-negative vs haploinsufficiency", "caveat": "Only a wet lab can confirm the functional consequence." },
+      { "index": 10, "label": "Clinical", "status": "upcoming", "detail": "ICD already protects — the real safeguard today", "caveat": "Compute never reaches here. An ICD is the current standard of care." }
+    ],
+    "live_result": {
+      "metric_label": "core RMSF (res 55–85)",
+      "unit": "Å",
+      "series": [
+        { "name": "WT", "value": 3.9, "unit": "Å", "note": "n=1 so far this batch", "sparkline": [3.6, 3.7, 3.8, 3.9, 3.9] },
+        { "name": "R104Q", "value": 5.4, "unit": "Å", "note": "+37% vs WT", "sparkline": [4.6, 4.9, 5.2, 5.3, 5.4] },
+        { "name": "rescued", "value": 3.1, "unit": "Å", "note": "most rigid", "sparkline": [3.2, 3.1, 3.05, 3.1, 3.1] }
+      ]
+    },
+    "so_what": "±error bars pending — need all 3 seeds."
+  },
+  {
+    "id": "r104q-flagship",
+    "rig_id": "modal",
+    "title": "R104Q · flagship MD",
+    "hypothesis": "R104Q destabilizes the NTD core; D84N rescues it.",
+    "funnel": [
+      { "index": 1, "label": "Structure & mechanism", "status": "done", "detail": "8VYJ · R104–D84 3.79 Å salt bridge", "caveat": "A crystal structure is a static snapshot, not proof of dynamics." },
+      { "index": 2, "label": "Variant scoring", "status": "done", "detail": "ESM −3.57 · AM 0.869 · REVEL 0.967", "caveat": "Predictors agree R104Q is damaging, but they don't give a mechanism." },
+      { "index": 3, "label": "Static models WT/mut/rescue", "status": "done", "detail": "built + minimized", "caveat": "Minimized models are starting points; behavior only shows under MD." },
+      { "index": 4, "label": "Flagship MD (n=1)", "status": "done", "detail": "core RMSF 3.98 → 5.46 → 3.09 ✓ mechanism", "caveat": "A single replicate can be a lucky trajectory — needs repeats." },
+      { "index": 5, "label": "MD replicates (n=3)", "status": "upcoming", "detail": "moved to the home rig", "caveat": "This is where a real signal separates from noise." },
+      { "index": 8, "label": "SIMULATION WALL", "status": "upcoming", "is_wall": true, "caveat": "Everything above is what a GPU can tell you. Nothing below is." }
+    ],
+    "live_result": null,
+    "so_what": "R104Q +37% core RMSF; D84N rescues below WT. n=1 — replicates needed."
+  }
+]

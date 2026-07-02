@@ -1,0 +1,16 @@
+# Xcode / XcodeGen
+BenchTop/*.xcodeproj/
+BenchTop/Generated/
+BenchTop/DerivedData/
+**/xcuserdata/
+*.xcuserstate
+
+# Python
+agent/.venv/
+agent/.venv-test/
+agent/__pycache__/
+**/__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
