@@ -36,9 +36,19 @@ curl http://localhost:8420/api/campaigns
 2. Set `BENCHTOP_MOCK=0`.
 3. Have your pipeline scripts append one JSON line per checkpoint to
    `checkpoints/<job_id>.jsonl` — `{"stage", "units_done", "units_total",
-   "throughput_per_hour", "timestamp"}`. That's the only integration point;
-   any job type shows up in the app automatically as long as it checkpoints
-   in this shape.
+   "throughput_per_hour", "timestamp"}`, optionally with `"status"`
+   (`"completed"` / `"failed"`) and `"error_message"`. That's the only
+   integration point; any job type shows up in the app automatically as long
+   as it checkpoints in this shape — you never need to go back and edit
+   `jobs.json` as a job progresses.
+
+   Status resolves in this order: an explicit `status` on the latest
+   checkpoint line wins; otherwise it's inferred as `"completed"` once
+   `units_done >= units_total`; otherwise it falls back to whatever
+   `jobs.json` declared (typically `"queued"` or `"running"`, set once when
+   the job is created). A script that can't cleanly report 100% completion
+   (or that wants to report a specific error) should just set `"status"` and
+   `"error_message"` on its last checkpoint line.
 
 ```bash
 export BENCHTOP_MOCK=0
@@ -48,6 +58,18 @@ uvicorn benchtop_agent.main:app --host 0.0.0.0 --port 8420
 
 GPU stats come from `nvidia-smi` automatically in this mode — no
 configuration needed beyond having the NVIDIA drivers installed.
+
+## Tests
+
+```bash
+cd agent
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt
+pytest tests/
+```
+
+Covers the checkpoint-merge and status-resolution logic in `jobs.py`, and a
+couple of end-to-end checks through the actual FastAPI app.
 
 ## Endpoints
 

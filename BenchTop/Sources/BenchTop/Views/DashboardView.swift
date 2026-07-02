@@ -32,7 +32,7 @@ struct DashboardView: View {
                             .padding(.horizontal)
 
                         ForEach(store.campaigns) { campaign in
-                            NavigationLink(value: campaign) {
+                            NavigationLink(value: CampaignRoute(id: campaign.id)) {
                                 CampaignRow(campaign: campaign, jobs: store.jobs(in: campaign))
                             }
                             .buttonStyle(.plain)
@@ -50,8 +50,8 @@ struct DashboardView: View {
                 }
             }
             .navigationTitle("BenchTop")
-            .navigationDestination(for: Campaign.self) { campaign in
-                CampaignDetailView(campaign: campaign)
+            .navigationDestination(for: CampaignRoute.self) { route in
+                CampaignDetailView(campaignID: route.id)
             }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -96,7 +96,34 @@ private struct CampaignRow: View {
 }
 
 #Preview {
-    DashboardView()
+    let store = BenchTopStore(config: AgentConfig())
+    store.seed(
+        gpus: [
+            GPUStatus(
+                id: "gpu-0", index: 0, name: "NVIDIA GeForce RTX 4060 Ti",
+                utilizationPercent: 87, memoryUsedMB: 9200, memoryTotalMB: 16384,
+                temperatureC: 68, powerWatts: 145, currentJobID: "job-42"
+            ),
+        ],
+        jobs: [
+            Job(
+                id: "job-42", campaignID: "campaign-r104q", name: "R104Q NTD pocket MD",
+                kind: .mdSimulation, gpuID: "gpu-0", status: .running, stage: "Production run",
+                unitsDone: 63, unitsTotal: 200, unitLabel: "ns", throughputPerHour: 22.5,
+                startedAt: .now, lastCheckpointAt: .now, errorMessage: nil
+            ),
+        ],
+        campaigns: [
+            Campaign(
+                id: "campaign-r104q", name: "SCN5A-R104Q", target: "SCN5A R104Q NTD pocket",
+                funnel: [
+                    FunnelStage(name: "Enamine slice screened", count: 1_200_000),
+                    FunnelStage(name: "Shortlisted", count: 5),
+                ]
+            ),
+        ]
+    )
+    return DashboardView()
         .environmentObject(AgentConfig())
-        .environmentObject(BenchTopStore(config: AgentConfig()))
+        .environmentObject(store)
 }

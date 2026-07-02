@@ -4,8 +4,17 @@ Real mode: a `jobs.json` manifest holds per-job metadata that rarely changes
 (name, campaign, kind, gpu). Each job's live progress comes from the last
 line of `checkpoints/<job_id>.jsonl` — the pipeline scripts append one JSON
 object per checkpoint (stage, units_done, units_total, throughput_per_hour,
-timestamp). This is the "clever hook": any job type shows up automatically
-as long as it checkpoints in this shape, with no agent changes needed.
+timestamp, and optionally status/error_message). This is the "clever hook":
+any job type shows up automatically as long as it checkpoints in this shape,
+with no agent changes needed and no need to go back and edit the manifest.
+
+A job's status resolves in this order:
+  1. `status` on the latest checkpoint line, if present (lets a script
+     explicitly say "failed" with an `error_message`, or "completed").
+  2. Inferred as "completed" if `units_done >= units_total` and the
+     manifest didn't already say "failed".
+  3. Whatever `jobs.json` declared (typically "queued" or "running", set
+     once when the job is created).
 
 Mock mode: everything comes straight from sample_data/jobs.json and
 sample_data/campaigns.json, already in the shape the app expects.
@@ -34,6 +43,17 @@ def _last_jsonl_line(path: Path) -> dict[str, Any] | None:
     return last
 
 
+def _resolve_status(entry: dict[str, Any], checkpoint: dict[str, Any], units_done: float, units_total: float | None) -> str:
+    if "status" in checkpoint:
+        return checkpoint["status"]
+    manifest_status = entry.get("status", "queued")
+    if manifest_status == "failed":
+        return manifest_status
+    if units_total is not None and units_done >= units_total:
+        return "completed"
+    return manifest_status
+
+
 def _read_real_jobs() -> list[Job]:
     if not settings.jobs_manifest_path.exists():
         return []
@@ -42,19 +62,24 @@ def _read_real_jobs() -> list[Job]:
     jobs: list[Job] = []
     for entry in manifest:
         checkpoint_path = settings.checkpoints_dir / f"{entry['id']}.jsonl"
-        checkpoint = _last_jsonl_line(checkpoint_path) if checkpoint_path.exists() else None
+        checkpoint = (_last_jsonl_line(checkpoint_path) if checkpoint_path.exists() else None) or {}
+
+        units_done = checkpoint.get("units_done", entry.get("units_done", 0))
+        units_total = checkpoint.get("units_total", entry.get("units_total"))
 
         merged = {
             **entry,
-            "stage": (checkpoint or {}).get("stage", entry.get("stage", "queued")),
-            "units_done": (checkpoint or {}).get("units_done", entry.get("units_done", 0)),
-            "units_total": (checkpoint or {}).get("units_total", entry.get("units_total")),
-            "throughput_per_hour": (checkpoint or {}).get(
+            "stage": checkpoint.get("stage", entry.get("stage", "queued")),
+            "units_done": units_done,
+            "units_total": units_total,
+            "throughput_per_hour": checkpoint.get(
                 "throughput_per_hour", entry.get("throughput_per_hour")
             ),
-            "last_checkpoint_at": (checkpoint or {}).get(
+            "last_checkpoint_at": checkpoint.get(
                 "timestamp", entry.get("last_checkpoint_at", entry.get("started_at"))
             ),
+            "status": _resolve_status(entry, checkpoint, units_done, units_total),
+            "error_message": checkpoint.get("error_message", entry.get("error_message")),
         }
         jobs.append(Job.model_validate(merged))
     return jobs

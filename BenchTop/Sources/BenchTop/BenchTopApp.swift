@@ -2,8 +2,9 @@ import SwiftUI
 
 @main
 struct BenchTopApp: App {
-    @StateObject private var config = AgentConfig()
+    @StateObject private var config: AgentConfig
     @StateObject private var store: BenchTopStore
+    private let notifications = NotificationManager()
 
     init() {
         let config = AgentConfig()
@@ -17,6 +18,7 @@ struct BenchTopApp: App {
                 .environmentObject(config)
                 .environmentObject(store)
                 .task {
+                    notifications.requestAuthorization()
                     store.startPolling()
                 }
         }

@@ -1,50 +1,70 @@
 import SwiftUI
 
+/// Navigation payload — carries only the campaign id, so the destination
+/// view always reads live data from the store rather than a snapshot frozen
+/// at the moment the user tapped in.
+struct CampaignRoute: Hashable {
+    var id: String
+}
+
 struct CampaignDetailView: View {
     @EnvironmentObject private var store: BenchTopStore
-    var campaign: Campaign
+    var campaignID: String
+
+    private var campaign: Campaign? {
+        store.campaigns.first { $0.id == campaignID }
+    }
 
     private var jobs: [Job] {
-        store.jobs(in: campaign)
+        campaign.map(store.jobs(in:)) ?? []
     }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(campaign.target)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Text(campaign.name)
-                        .font(.largeTitle.weight(.bold))
-                }
-
-                if !campaign.funnel.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Funnel")
-                            .font(.headline)
-                        FunnelChartView(stages: campaign.funnel)
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Jobs")
-                        .font(.headline)
-
-                    if jobs.isEmpty {
-                        Text("No jobs reported for this campaign yet.")
-                            .font(.callout)
+            if let campaign {
+                VStack(alignment: .leading, spacing: 24) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(campaign.target)
+                            .font(.subheadline)
                             .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(jobs) { job in
-                            JobRow(job: job)
+                        Text(campaign.name)
+                            .font(.largeTitle.weight(.bold))
+                    }
+
+                    if !campaign.funnel.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Funnel")
+                                .font(.headline)
+                            FunnelChartView(stages: campaign.funnel)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Jobs")
+                            .font(.headline)
+
+                        if jobs.isEmpty {
+                            Text("No jobs reported for this campaign yet.")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(jobs) { job in
+                                JobRow(job: job)
+                            }
                         }
                     }
                 }
+                .padding()
+            } else {
+                ContentUnavailableView(
+                    "Campaign no longer reported",
+                    systemImage: "flask",
+                    description: Text("The agent stopped reporting this campaign.")
+                )
+                .padding(.top, 80)
             }
-            .padding()
         }
-        .navigationTitle(campaign.name)
+        .navigationTitle(campaign?.name ?? "Campaign")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -92,17 +112,19 @@ private struct JobRow: View {
 }
 
 #Preview {
-    NavigationStack {
-        CampaignDetailView(
-            campaign: Campaign(
-                id: "campaign-r104q", name: "SCN5A-R104Q", target: "SCN5A R104Q NTD pocket",
-                funnel: [
-                    FunnelStage(name: "Enamine slice screened", count: 1_200_000),
-                    FunnelStage(name: "Passed MD triage", count: 4_800),
-                    FunnelStage(name: "Shortlisted", count: 5),
-                ]
-            )
-        )
-        .environmentObject(BenchTopStore(config: AgentConfig()))
+    let store = BenchTopStore(config: AgentConfig())
+    store.seed(campaigns: [
+        Campaign(
+            id: "campaign-r104q", name: "SCN5A-R104Q", target: "SCN5A R104Q NTD pocket",
+            funnel: [
+                FunnelStage(name: "Enamine slice screened", count: 1_200_000),
+                FunnelStage(name: "Passed MD triage", count: 4_800),
+                FunnelStage(name: "Shortlisted", count: 5),
+            ]
+        ),
+    ])
+    return NavigationStack {
+        CampaignDetailView(campaignID: "campaign-r104q")
+            .environmentObject(store)
     }
 }

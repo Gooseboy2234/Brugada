@@ -70,6 +70,14 @@ final class BenchTopStore: ObservableObject {
         return jobs.first { $0.id == jobID }
     }
 
+    /// Seeds state directly, bypassing the network — for SwiftUI previews
+    /// and tests only.
+    func seed(gpus: [GPUStatus] = [], jobs: [Job] = [], campaigns: [Campaign] = []) {
+        self.gpus = gpus
+        self.jobs = jobs
+        self.campaigns = campaigns
+    }
+
     private func noticeTransitions(from newJobs: [Job]) {
         for job in newJobs {
             let previous = previousJobStatus[job.id]
