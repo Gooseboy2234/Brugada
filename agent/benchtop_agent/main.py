@@ -1,26 +1,39 @@
-"""BenchTop agent: serves GPU + job + campaign state over the local network
-for the BenchTop iOS/macOS app to poll.
+"""BenchTop agent: serves GPU + job + campaign + stats state over the local
+network for the BenchTop iOS/macOS app to poll, and advertises itself via
+mDNS/Bonjour so the app can find it without a typed-in IP.
 
 Run with:
     uvicorn benchtop_agent.main:app --host 0.0.0.0 --port 8420
 """
 from __future__ import annotations
 
+import asyncio
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
-from . import gpu, jobs
+from . import gpu, jobs, stats as stats_module
 from .config import settings
-from .models import Campaign, GPUStatus, Job
+from .discovery import AgentAdvertiser
+from .models import Campaign, GPUStatus, Job, Stats
 
-app = FastAPI(title="BenchTop Agent")
+_advertiser = AgentAdvertiser(settings)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["GET"],
-    allow_headers=["*"],
-)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # AgentAdvertiser.start()/stop() call zeroconf's synchronous API, which
+    # itself coordinates with a background asyncio loop via
+    # run_coroutine_threadsafe — calling it directly from *this* event loop
+    # deadlocks (zeroconf raises EventLoopBlocked after its internal
+    # timeout). Running it in a worker thread avoids the conflict.
+    await asyncio.to_thread(_advertiser.start)
+    yield
+    await asyncio.to_thread(_advertiser.stop)
+
+
+app = FastAPI(title="BenchTop Agent", lifespan=lifespan)
 
 
 @app.get("/api/health")
@@ -45,3 +58,8 @@ def get_jobs() -> list[Job]:
 @app.get("/api/campaigns", response_model=list[Campaign])
 def get_campaigns() -> list[Campaign]:
     return jobs.read_campaigns()
+
+
+@app.get("/api/stats", response_model=Stats)
+def get_stats() -> Stats:
+    return stats_module.compute_stats(jobs.read_jobs(), settings, datetime.now(timezone.utc))

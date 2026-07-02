@@ -9,6 +9,11 @@ struct DashboardView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
+                if let stats = store.stats {
+                    StatsSummaryView(stats: stats)
+                        .padding(.top)
+                }
+
                 if store.gpus.isEmpty {
                     ContentUnavailableView(
                         "No GPUs reported yet",
@@ -121,7 +126,11 @@ private struct CampaignRow: View {
                     FunnelStage(name: "Shortlisted", count: 5),
                 ]
             ),
-        ]
+        ],
+        stats: Stats(
+            totalGPUHours: 55.2, totalCostUSD: 8.28, budgetUSD: 20,
+            budgetCrossed: false, totalsByUnit: ["ns": 63, "molecules": 1_202_100]
+        )
     )
     return DashboardView()
         .environmentObject(AgentConfig())

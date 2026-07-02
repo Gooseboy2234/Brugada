@@ -16,4 +16,16 @@ struct GPUStatus: Identifiable, Codable, Hashable {
         guard memoryTotalMB > 0 else { return 0 }
         return memoryUsedMB / memoryTotalMB
     }
+
+    // Explicit, exact mapping to the agent's snake_case JSON keys — see
+    // AgentClient's comment on why convertFromSnakeCase isn't used.
+    private enum CodingKeys: String, CodingKey {
+        case id, index, name
+        case utilizationPercent = "utilization_percent"
+        case memoryUsedMB = "memory_used_mb"
+        case memoryTotalMB = "memory_total_mb"
+        case temperatureC = "temperature_c"
+        case powerWatts = "power_watts"
+        case currentJobID = "current_job_id"
+    }
 }

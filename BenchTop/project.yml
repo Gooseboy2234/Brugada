@@ -23,8 +23,14 @@ targets:
       properties:
         UILaunchScreen: {}
         NSLocalNetworkUsageDescription: "BenchTop connects to the agent running on your GPU rig over your local Wi-Fi network to show live job status."
+        NSBonjourServices:
+          - "_benchtop._tcp"
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+        UIBackgroundModes:
+          - fetch
+        BGTaskSchedulerPermittedIdentifiers:
+          - "com.benchtop.app.refresh"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.benchtop.app

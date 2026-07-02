@@ -25,7 +25,13 @@ Then, e.g.:
 curl http://localhost:8420/api/gpus
 curl http://localhost:8420/api/jobs
 curl http://localhost:8420/api/campaigns
+curl http://localhost:8420/api/stats
 ```
+
+The agent also advertises itself over mDNS/Bonjour on startup (service type
+`_benchtop._tcp`), so the app's Settings screen should find it automatically
+under "Found on this network" instead of needing a typed-in host — see
+"Configuration" below to name it or turn that off.
 
 ## Run it for real, on the rig
 
@@ -59,6 +65,21 @@ uvicorn benchtop_agent.main:app --host 0.0.0.0 --port 8420
 GPU stats come from `nvidia-smi` automatically in this mode — no
 configuration needed beyond having the NVIDIA drivers installed.
 
+## Configuration
+
+All via environment variables; every one is optional.
+
+| Variable                     | Default              | Meaning |
+|-------------------------------|-----------------------|---------|
+| `BENCHTOP_HOST`               | `0.0.0.0`             | Bind address |
+| `BENCHTOP_PORT`                | `8420`                | Bind port |
+| `BENCHTOP_MOCK`                | `1` (on)              | Serve bundled sample data instead of `nvidia-smi`/checkpoint files |
+| `BENCHTOP_DATA_DIR`            | `agent/sample_data`   | Where `jobs.json`/`campaigns.json`/`checkpoints/` live |
+| `BENCHTOP_COST_PER_GPU_HOUR`  | `0`                   | $/hour used to turn GPU-hours into a cost estimate in `/api/stats` — whatever you want that number to mean (electricity, amortized hardware, ...) |
+| `BENCHTOP_BUDGET_USD`         | unset (no budget)     | If set, `/api/stats` reports `budget_crossed` once total cost reaches it — the app alerts on the false→true transition |
+| `BENCHTOP_ADVERTISE`           | `1` (on)              | Advertise via mDNS/Bonjour. Best-effort — set to `0` to disable, or it disables itself automatically if `zeroconf` isn't installed or the network blocks multicast |
+| `BENCHTOP_SERVICE_NAME`       | `BenchTop Rig`        | Name shown in the app's discovery list |
+
 ## Tests
 
 ```bash
@@ -68,8 +89,12 @@ pip install -r requirements-dev.txt
 pytest tests/
 ```
 
-Covers the checkpoint-merge and status-resolution logic in `jobs.py`, and a
-couple of end-to-end checks through the actual FastAPI app.
+Covers the checkpoint-merge and status-resolution logic in `jobs.py`, the
+stats/budget computation in `stats.py` (pure function, fully deterministic),
+end-to-end checks through the actual FastAPI app, and a real mDNS
+register → independently browse round trip (skips itself gracefully rather
+than failing if the environment blocks multicast — see the module docstring
+in `tests/test_discovery.py`).
 
 ## Endpoints
 
@@ -79,14 +104,20 @@ couple of end-to-end checks through the actual FastAPI app.
 | GET    | `/api/gpus`      | `GPUStatus[]`                         |
 | GET    | `/api/jobs`      | `Job[]`                               |
 | GET    | `/api/campaigns` | `Campaign[]`                          |
+| GET    | `/api/stats`     | `Stats` — GPU-hours, $ spent, budget-crossed flag, totals by unit |
 
 Schemas are defined in `benchtop_agent/models.py` and mirrored by the Swift
 models in `../BenchTop/Sources/BenchTop/Models`.
 
 ## Exposing it on your LAN
 
-The app connects by IP/hostname (no discovery yet — see the spec's "later"
-section). Find the rig's LAN IP and enter `<ip>:8420` in the app's Settings
-sheet. If you'd rather use a hostname, `benchtop.local` (the app's default)
-works if the rig advertises itself via mDNS/Bonjour — e.g. `avahi-daemon` on
-Linux — otherwise just use the IP.
+The agent advertises itself via mDNS/Bonjour (`discovery.py`) so the app's
+Settings screen can find it without a typed-in IP — this was actually
+verified end-to-end in this environment (register with `AgentAdvertiser`,
+find it with an independent `zeroconf` browser; see
+`tests/test_discovery.py`). It's best-effort: some networks block multicast
+entirely, `zeroconf` might not be installed, or you might just be running
+this somewhere Bonjour doesn't reach — none of that stops the agent from
+starting or serving its REST endpoints, it just means the app's Settings
+screen won't auto-populate and you fall back to typing in `<ip>:8420`
+directly.

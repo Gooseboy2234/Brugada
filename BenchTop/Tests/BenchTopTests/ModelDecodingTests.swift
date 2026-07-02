@@ -2,9 +2,10 @@ import XCTest
 @testable import BenchTop
 
 final class ModelDecodingTests: XCTestCase {
+    // Matches AgentClient's decoder exactly: no key conversion, since every
+    // model declares explicit CodingKeys for its snake_case JSON keys.
     private func makeDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         decoder.dateDecodingStrategy = .iso8601
         return decoder
     }
@@ -100,5 +101,42 @@ final class ModelDecodingTests: XCTestCase {
         let campaign = try makeDecoder().decode(Campaign.self, from: json)
         XCTAssertEqual(campaign.startCount, 1_200_000)
         XCTAssertEqual(campaign.latestCount, 5)
+    }
+
+    func testDecodeStats() throws {
+        // Shape verified against a live agent response in agent/tests/test_api.py.
+        let json = """
+        {
+          "total_gpu_hours": 12.5,
+          "total_cost_usd": 3.75,
+          "budget_usd": 10.0,
+          "budget_crossed": false,
+          "totals_by_unit": {"ns": 75.0, "molecules": 1200000.0}
+        }
+        """.data(using: .utf8)!
+
+        let stats = try makeDecoder().decode(Stats.self, from: json)
+        XCTAssertEqual(stats.totalGPUHours, 12.5, accuracy: 0.0001)
+        XCTAssertEqual(stats.totalCostUSD, 3.75, accuracy: 0.0001)
+        XCTAssertEqual(stats.budgetUSD, 10.0)
+        XCTAssertFalse(stats.budgetCrossed)
+        XCTAssertEqual(stats.totalsByUnit["molecules"], 1_200_000)
+        XCTAssertEqual(stats.budgetFraction ?? 0, 0.375, accuracy: 0.0001)
+    }
+
+    func testDecodeStatsWithNoBudgetConfigured() throws {
+        let json = """
+        {
+          "total_gpu_hours": 0,
+          "total_cost_usd": 0,
+          "budget_usd": null,
+          "budget_crossed": false,
+          "totals_by_unit": {}
+        }
+        """.data(using: .utf8)!
+
+        let stats = try makeDecoder().decode(Stats.self, from: json)
+        XCTAssertNil(stats.budgetUSD)
+        XCTAssertNil(stats.budgetFraction)
     }
 }

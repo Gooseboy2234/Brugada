@@ -55,4 +55,21 @@ struct Job: Identifiable, Codable, Hashable {
         let remainingUnits = max(unitsTotal - unitsDone, 0)
         return (remainingUnits / throughputPerHour) * 3600
     }
+
+    // Explicit, exact mapping to the agent's snake_case JSON keys — see
+    // AgentClient's comment on why convertFromSnakeCase isn't used.
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case campaignID = "campaign_id"
+        case name, kind
+        case gpuID = "gpu_id"
+        case status, stage
+        case unitsDone = "units_done"
+        case unitsTotal = "units_total"
+        case unitLabel = "unit_label"
+        case throughputPerHour = "throughput_per_hour"
+        case startedAt = "started_at"
+        case lastCheckpointAt = "last_checkpoint_at"
+        case errorMessage = "error_message"
+    }
 }

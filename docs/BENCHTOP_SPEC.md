@@ -48,23 +48,59 @@ automatically — the agent and app stay generic and don't need to know about
 docking or MD specifically.
 
 **Build path:**
-- v0: agent (Python/FastAPI) + SwiftUI app talking to it over the LAN using
-  manually entered host/port. A genuine weekend build.
-- Later: Bonjour/mDNS auto-discovery of the agent on the LAN, richer funnel
-  charts, a watchOS complication, push notifications proper (still local-only,
-  no external push service needed since the agent and app share a network).
+- v0 (built): agent (Python/FastAPI) + SwiftUI app talking to it over the
+  LAN, with Bonjour/mDNS auto-discovery so host/port entry is a fallback
+  rather than the only option; cumulative GPU-hours/$ spent/budget-crossed
+  tracking; a macOS menu bar extra so a Mac left running near the rig acts
+  as an ambient monitor without a window open; best-effort background
+  refresh on iOS.
+- Later, deliberately not built here: a watchOS complication (a genuinely
+  separate multi-weekend target — new platform, new UI, pairing), richer
+  funnel chart interactions, true push notifications (would need an APNs
+  relay server, which contradicts the local-network-only design — see
+  "Alerting" below for what v0 actually delivers instead).
 
 ## Why this matters
 
 The app's job is to make the *dent being made* visible and legible over
 months: total ns simulated, molecules screened, shortlist size, cost — the
 emotional payoff of running a rig continuously for a long-horizon goal.
+`/api/stats` and the dashboard's stats summary card are where this lives:
+cumulative GPU-hours, a $ estimate from a configurable rate, an optional
+budget with a crossed/not-crossed flag, and totals grouped by whatever unit
+each job reports (ns, molecules, ...).
+
+## Alerting: what "push" actually means in v0
+
+There's no cloud/APNs relay by design — the agent and app only ever talk
+over the LAN. That has a real consequence for alerts:
+
+- **macOS**: the menu bar extra keeps the app process (and its polling loop)
+  alive even with no window open, so local notifications fire whenever the
+  app notices a state transition — this is the closest thing to "always on"
+  v0 has, and it's genuinely reliable as long as the Mac itself is running.
+- **iOS**: `BGAppRefreshTask` gives *best-effort* background polling — iOS
+  decides if/when it actually runs based on usage patterns, battery, and
+  charging state, which in practice can mean anywhere from ~15 minutes to
+  several hours later, or not at all if the app is rarely opened. This is
+  the honest ceiling without a push server component, which was ruled out to
+  keep the "no cloud" property. If reliable phone alerts matter more than
+  "no cloud", that's the tradeoff to revisit later.
+- **Foreground, both platforms**: alerts are immediate and reliable — the
+  store notices transitions on every poll while the app is open.
 
 ## Status
 
-This repository currently holds the **scaffold only**: data models, a talking
-skeleton for the SwiftUI app (Dashboard / Campaign detail / Funnel / Settings
-views with no real data wired up beyond the agent's sample/mock mode), and the
-Python agent with mock and real (`nvidia-smi`-backed) data sources. Nothing
-here has been built or run on an actual Mac/iPhone yet — see the root
-`README.md` for what to do once you're on a Mac with Xcode.
+This repository holds a **scaffold that was never opened in Xcode**: data
+models, a full-ish SwiftUI app (Dashboard with GPU tiles + stats summary,
+Campaign detail with funnel chart, Settings with Bonjour discovery, a macOS
+menu bar extra, iOS background refresh), and the Python agent with mock and
+real (`nvidia-smi`-backed) data sources, mDNS advertisement, and stats/budget
+computation. The agent side has been run and has an automated test suite
+(`agent/tests/`, including a real mDNS register→browse round trip — not
+just "didn't crash"). The Swift side has been reviewed carefully by hand
+(and one systemic decoding bug — see AgentClient's comment on
+`convertFromSnakeCase` — was caught this way) but **still never compiled**;
+see the root `README.md` for what to do once you're on a Mac with Xcode, and
+for which pieces (Bonjour resolution, background refresh, menu bar) are the
+most likely to need a fix on first build.

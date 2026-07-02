@@ -11,9 +11,14 @@ struct AgentClient {
     var config: AgentConfig
     var session: URLSession = .shared
 
+    // Deliberately NOT using .convertFromSnakeCase: it only capitalizes the
+    // first letter of each segment (memory_used_mb -> memoryUsedMb, not
+    // memoryUsedMB), which mismatches acronym-bearing Swift property names
+    // like memoryUsedMB/gpuID/campaignID. Every model instead declares an
+    // explicit CodingKeys enum with the exact snake_case JSON key, so this
+    // decoder does no key transformation at all.
     private var decoder: JSONDecoder {
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         decoder.dateDecodingStrategy = .iso8601
         return decoder
     }
@@ -28,6 +33,10 @@ struct AgentClient {
 
     func fetchCampaigns() async throws -> [Campaign] {
         try await get("/api/campaigns")
+    }
+
+    func fetchStats() async throws -> Stats {
+        try await get("/api/stats")
     }
 
     private func get<T: Decodable>(_ path: String) async throws -> T {

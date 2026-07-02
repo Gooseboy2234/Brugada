@@ -37,6 +37,25 @@ class Settings:
     # Useful for developing the app UI on a machine with no NVIDIA GPU at all.
     mock: bool = _bool_env("BENCHTOP_MOCK", True)
 
+    # Used to turn GPU-hours into a $ estimate in /api/stats. Left at 0 (no
+    # cost shown) unless set — there's no universally right number here
+    # (electricity rate, amortized hardware, whatever you want it to mean).
+    cost_per_gpu_hour: float = float(os.environ.get("BENCHTOP_COST_PER_GPU_HOUR", "0"))
+
+    # Optional spending cap; /api/stats reports whether it's been crossed so
+    # the app can alert on it. Unset (None) means "no budget configured".
+    budget_usd: float | None = (
+        float(os.environ["BENCHTOP_BUDGET_USD"]) if "BENCHTOP_BUDGET_USD" in os.environ else None
+    )
+
+    # mDNS/Bonjour advertisement so the app can find this agent on the LAN
+    # without the user typing in an IP. Best-effort: some networks/sandboxes
+    # block multicast, in which case this is silently skipped (see
+    # discovery.py) and manual host entry in the app still works.
+    advertise: bool = _bool_env("BENCHTOP_ADVERTISE", True)
+    service_type: str = "_benchtop._tcp.local."
+    service_name: str = os.environ.get("BENCHTOP_SERVICE_NAME", "BenchTop Rig")
+
     @property
     def jobs_manifest_path(self) -> Path:
         return self.data_dir / "jobs.json"

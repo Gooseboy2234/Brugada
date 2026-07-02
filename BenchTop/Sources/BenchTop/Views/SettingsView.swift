@@ -4,6 +4,7 @@ struct SettingsView: View {
     @EnvironmentObject private var config: AgentConfig
     @EnvironmentObject private var store: BenchTopStore
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var discovery = AgentDiscovery()
 
     @State private var hostDraft: String = ""
     @State private var portDraft: String = ""
@@ -24,6 +25,25 @@ struct SettingsView: View {
                         #endif
                 } footer: {
                     Text("The BenchTop agent runs on the rig itself and serves its status over your local network. Defaults match `benchtop_agent` run with its default port.")
+                }
+
+                if !discovery.discovered.isEmpty {
+                    Section("Found on this network") {
+                        ForEach(discovery.discovered) { agent in
+                            Button {
+                                hostDraft = agent.host
+                                portDraft = String(agent.port)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(agent.name)
+                                        .foregroundStyle(.primary)
+                                    Text("\(agent.host):\(agent.port)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
                 }
 
                 if let lastUpdated = store.lastUpdated {
@@ -49,6 +69,10 @@ struct SettingsView: View {
             .onAppear {
                 hostDraft = config.host
                 portDraft = String(config.port)
+                discovery.start()
+            }
+            .onDisappear {
+                discovery.stop()
             }
         }
     }

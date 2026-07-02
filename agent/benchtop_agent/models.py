@@ -53,3 +53,17 @@ class Campaign(BaseModel):
     name: str
     target: str
     funnel: list[FunnelStage]
+
+
+class Stats(BaseModel):
+    """Cumulative totals across all currently-known jobs — the "dent being
+    made" the app exists to make visible. Deliberately generic: totals are
+    grouped by whatever unit_label each job reports (ns, molecules, ...)
+    rather than hardcoding pipeline-specific concepts.
+    """
+
+    total_gpu_hours: float
+    total_cost_usd: float
+    budget_usd: Optional[float] = None
+    budget_crossed: bool
+    totals_by_unit: dict[str, float]

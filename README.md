@@ -19,10 +19,15 @@ concretely:
 
 - ✅ Swift models, views, networking, and state layer are written and
   believed correct, but **never compiled** — there's no Swift toolchain here.
-  Expect small build errors on first open in Xcode.
-- ✅ The Python agent (`agent/`) **was actually run** in this session, in both
-  mock mode and a simulated "real" mode reading `nvidia-smi`-shaped
-  checkpoint files — see `agent/README.md`. It works.
+  Expect small build errors on first open in Xcode. The Bonjour discovery
+  client (`AgentDiscovery.swift`), the macOS menu bar extra, and iOS
+  background refresh are the newest and least-battle-tested pieces — flagged
+  in-file with why.
+- ✅ The Python agent (`agent/`) **was actually run** in this session — mock
+  mode, a simulated "real" mode reading `nvidia-smi`-shaped checkpoint
+  files, the `/api/stats` budget/cost computation, and a genuine mDNS
+  register → independently browse round trip (not just "didn't throw"; see
+  `agent/README.md` and `agent/tests/`). It works, and has 19 passing tests.
 - ⬜ Nothing has been opened in Xcode, built, run in a simulator, or put on a
   device yet. That's the next step, on a Mac with room for Xcode
   (~40GB free is a safe bet).
@@ -33,16 +38,23 @@ concretely:
 BenchTop/                  SwiftUI app (iOS + macOS), generated via XcodeGen
   project.yml               XcodeGen spec — the source of truth for the Xcode project
   Sources/BenchTop/          App code, shared between the iOS and macOS targets
-    Models/                   GPUStatus, Job, Campaign/FunnelStage
-    Networking/               AgentClient (polls the agent), AgentConfig (host/port)
-    State/                    BenchTopStore (polling loop, transition detection)
-    Views/                    Dashboard, GPU tile, campaign detail, funnel chart, settings
-    Notifications/            Local alerts on job done/failed
+    Models/                   GPUStatus, Job, Campaign/FunnelStage, Stats
+    Networking/               AgentClient (polls the agent), AgentConfig (host/port),
+                               AgentDiscovery (Bonjour/mDNS pick list)
+    State/                    BenchTopStore (polling loop, transition + budget alerts)
+    Views/                    Dashboard, stats summary, GPU tile, campaign detail,
+                               funnel chart, settings, macOS menu bar summary
+    Notifications/            Local alerts on job done/failed/budget crossed
+    Platform/                 macOS AppDelegate (stay running with no window open),
+                               iOS background refresh (BGTaskScheduler)
   Tests/BenchTopTests/       Model-decoding tests
 
 agent/                     Python (FastAPI) daemon that runs on the rig
   benchtop_agent/            App code — see agent/README.md for how to run it
+    stats.py                   GPU-hours / cost / budget / per-unit totals (pure function)
+    discovery.py                mDNS/Bonjour advertisement (best-effort, optional dep)
   sample_data/               Mock data + an example of the real-mode file layout
+  tests/                     pytest suite — 19 tests, all passing, incl. a real mDNS round trip
 
 docs/BENCHTOP_SPEC.md      The product spec/concept this was scaffolded from
 ```
@@ -68,6 +80,12 @@ docs/BENCHTOP_SPEC.md      The product spec/concept this was scaffolded from
 5. Start the agent (see `agent/README.md`) in mock mode on the same Mac and
    point the app's Settings sheet at `localhost:8420` to see it come alive
    without needing the actual GPU rig or an iPhone/Mac on the same network.
+   The agent advertises itself over mDNS by default, so Settings should also
+   list it under "Found on this network" — that's the Bonjour discovery path
+   and worth checking specifically since it's the least-tested piece.
+6. On macOS, closing the window shouldn't quit the app — look for the new
+   menu bar icon; clicking it should show the same GPU/job summary. If the
+   app does quit on window close, `MacAppDelegate` isn't wired up correctly.
 
 ## Why this shape
 
@@ -83,3 +101,11 @@ docs/BENCHTOP_SPEC.md      The product spec/concept this was scaffolded from
   per checkpoint to a per-job file. Any job type shows up in the app
   automatically — the agent and app never need to know what docking or MD
   simulation *is*.
+- **No watchOS target**: the spec itself calls this out as a separate,
+  multi-weekend later step (new platform, new UI, pairing) rather than part
+  of the v0 weekend build — pulling it in now would be scope creep, not
+  completeness.
+- **No CORS middleware on the agent**: it was in an earlier version and got
+  removed — CORS is a browser concept (preflight checks enforced by
+  browsers), and native `URLSession`/`NWConnection` clients never trigger it.
+  It was dead code.
