@@ -1,0 +1,15 @@
+[
+  {
+    "id": "job-42",
+    "campaign_id": "campaign-r104q",
+    "name": "R104Q NTD pocket MD",
+    "kind": "md_simulation",
+    "gpu_id": "gpu-0",
+    "status": "running",
+    "stage": "queued",
+    "units_done": 0,
+    "unit_label": "ns",
+    "started_at": "2026-06-30T12:00:00Z",
+    "last_checkpoint_at": "2026-06-30T12:00:00Z"
+  }
+]

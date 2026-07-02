@@ -1,0 +1,14 @@
+[
+  {
+    "id": "campaign-r104q",
+    "name": "SCN5A-R104Q",
+    "target": "SCN5A R104Q NTD pocket",
+    "funnel": [
+      { "name": "Enamine slice screened (ML surrogate)", "count": 1200000 },
+      { "name": "Surrogate shortlist", "count": 6000 },
+      { "name": "Docked", "count": 6000 },
+      { "name": "Passed MD triage", "count": 4800 },
+      { "name": "Shortlisted for wet lab", "count": 5 }
+    ]
+  }
+]

@@ -1,0 +1,50 @@
+[
+  {
+    "id": "job-42",
+    "campaign_id": "campaign-r104q",
+    "name": "R104Q NTD pocket MD",
+    "kind": "md_simulation",
+    "gpu_id": "gpu-0",
+    "status": "running",
+    "stage": "Production run — salt-bridge live",
+    "units_done": 63,
+    "units_total": 200,
+    "unit_label": "ns",
+    "throughput_per_hour": 22.5,
+    "started_at": "2026-06-30T12:00:00Z",
+    "last_checkpoint_at": "2026-07-02T08:00:00Z",
+    "error_message": null
+  },
+  {
+    "id": "job-41",
+    "campaign_id": "campaign-r104q",
+    "name": "Enamine slice — ML surrogate screen",
+    "kind": "ml_surrogate",
+    "gpu_id": null,
+    "status": "completed",
+    "stage": "Surrogate scoring complete",
+    "units_done": 1200000,
+    "units_total": 1200000,
+    "unit_label": "molecules",
+    "throughput_per_hour": null,
+    "started_at": "2026-06-27T09:00:00Z",
+    "last_checkpoint_at": "2026-06-29T21:00:00Z",
+    "error_message": null
+  },
+  {
+    "id": "job-39",
+    "campaign_id": "campaign-r104q",
+    "name": "Approved-drug docking screen",
+    "kind": "docking_screen",
+    "gpu_id": null,
+    "status": "failed",
+    "stage": "Docking",
+    "units_done": 2100,
+    "units_total": 4800,
+    "unit_label": "molecules",
+    "throughput_per_hour": null,
+    "started_at": "2026-06-25T10:00:00Z",
+    "last_checkpoint_at": "2026-06-25T14:00:00Z",
+    "error_message": "OpenMM CUDA platform init failed (context creation), 2 retries exhausted"
+  }
+]

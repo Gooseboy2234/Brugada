@@ -1,0 +1,83 @@
+name: BenchTop
+options:
+  bundleIdPrefix: com.benchtop
+  deploymentTarget:
+    iOS: "17.0"
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+targets:
+  BenchTop-iOS:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Sources/BenchTop
+    info:
+      path: Generated/iOS-Info.plist
+      properties:
+        UILaunchScreen: {}
+        NSLocalNetworkUsageDescription: "BenchTop connects to the agent running on your GPU rig over your local Wi-Fi network to show live job status."
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.benchtop.app
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        TARGETED_DEVICE_FAMILY: "1,2"
+    scheme:
+      testTargets:
+        - BenchTopTests-iOS
+
+  BenchTop-macOS:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Sources/BenchTop
+    info:
+      path: Generated/macOS-Info.plist
+      properties:
+        NSLocalNetworkUsageDescription: "BenchTop connects to the agent running on your GPU rig over your local network to show live job status."
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        LSApplicationCategoryType: public.app-category.developer-tools
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.benchtop.app
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ENABLE_HARDENED_RUNTIME: true
+        COMBINE_HIDPI_IMAGES: true
+    entitlements:
+      path: Generated/macOS.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.network.client: true
+    scheme:
+      testTargets:
+        - BenchTopTests-macOS
+
+  BenchTopTests-iOS:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Tests/BenchTopTests
+    dependencies:
+      - target: BenchTop-iOS
+
+  BenchTopTests-macOS:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Tests/BenchTopTests
+    dependencies:
+      - target: BenchTop-macOS
