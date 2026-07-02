@@ -1,106 +1,83 @@
-# BenchTop — product spec
+# BenchTop — what this repo implements
 
-## Background: the pipeline it tracks
+BenchTop turns *"is my GPU still doing something useful, and how far is my
+cure project?"* into a glance — in science words, not sysadmin words — for one
+specific hunt: does the **SCN5A R104Q** variant destabilize the channel's NTD
+core, and does **D84N** rescue it?
 
-A local workstation (RTX 4060 Ti class GPU) runs a continuous
-**generate → dock → MD-triage → prune** loop to produce wet-lab-ready drug
-shortlists for a target such as SCN5A-R104Q:
+This document maps the build to the source of truth, the **Comprehensive
+Tracker Guide** (`benchtop_tracker_guide.md`). Where they differ, the guide
+wins.
 
-1. **Validate a druggable pocket** on the target (e.g. the NTD) from MD frames.
-2. **Screen a curated small-molecule library** against that pocket — first the
-   ~few-thousand approved drugs (fast, days), then a smart-sampled slice of the
-   ~6B Enamine make-on-demand universe using an **ML surrogate** that predicts
-   docking scores, so only the hopeful ~0.1% ever get *actually* docked.
-3. **MD-triage the survivors** with short runs (~30 min each on a single card)
-   to keep only molecules that stay bound and leave the pocket folded.
-4. **Hand the final handful to a wet lab.**
+## The three questions, in priority order
 
-A single consumer GPU is enough because the target is small (~22k atoms,
-roughly 450–600 ns/day) and the screening is smart-sampled rather than brute
-forced.
+1. **Is the science moving?** — which hypothesis is being tested, how far along.
+2. **Is the money safe?** — burn rate, projected total, credit remaining.
+3. **Is the machine healthy?** — GPU temp/util/VRAM — *last*, because when
+   things are fine it's the least interesting.
 
-## The product: BenchTop
+Every screen and every rig card is ordered this way on purpose.
 
-BenchTop makes the pipeline's progress visible from a phone or a Mac, without
-any cloud dependency.
+## Data model — Rig → Campaign → Job → Checkpoint
 
-**Components:**
+Mirrored on both sides (`agent/benchtop_agent/models.py` ↔
+`BenchTop/Sources/BenchTop/Models`):
 
-- **Agent** — a small daemon that runs on the rig itself. It polls `nvidia-smi`
-  for live GPU stats and reads job/checkpoint state that the pipeline scripts
-  write locally, then serves it as JSON over the local network (Wi-Fi/LAN).
-  No cloud, no external accounts.
-- **App** — a single SwiftUI codebase targeting iPhone and Mac. It talks to
-  the agent over the local network and shows:
-  - **Dashboard** — one tile per GPU with a percent-done ring and an ETA
-    (the "how's it going / when's it done" question you keep asking).
-  - **Campaign detail** — speaks in the pipeline's own terms, e.g.
-    *"R104Q MD, 63 ns done, salt-bridge live"*, not generic ML job metadata.
-  - **Funnel view** — visualizes the self-pruning shape of a campaign, e.g.
-    *"1.2M molecules docked → 4,800 passed MD triage → 5 shortlisted."*
-  - **Push/local alerts** for job done, GPU throttling, round complete, a job
-    failing (including the OpenMM/CUDA class of failure), or a budget crossed.
+- **Rig** — one machine (home 4060 Ti, or a cloud/Modal sandbox). Carries GPU
+  model, VRAM, live temp/util/power, `$/hr`, `is_cloud`, uptime. **The honesty
+  rule lives here:** cloud rigs show real dollars; home rigs show `$0.00 ·
+  home = free` plus kWh. The app never pretends home GPU-hours cost money.
+- **Campaign** — one scientific question. Carries the one-sentence
+  **hypothesis**, the cure-journey **funnel**, a **live result** (the number
+  you actually care about, per system), a **so-what** verdict slot, and a
+  weighted **% of the computational journey** (never "% to cure").
+- **Job** — one concrete run. Carries tag, kind (md/fep/docking/folding),
+  status, units done vs target, ns/day + ETA (with its confidence window),
+  `$` spent, and **the one metric that matters for its type** with a
+  sparkline (MD → salt-bridge distance, FEP → ΔΔG, docking → best score,
+  folding → pLDDT), plus resource sparklines and a log tail.
+- **Checkpoint** — the rig-side heartbeat (`{units_done, metric_value, temp,
+  util}` appended to `checkpoints/<job_id>.jsonl`). It drives the sparklines.
+  That single append is the whole integration contract.
 
-**The checkpoint hook:** the pipeline scripts already checkpoint their own
-progress. If they append one JSON line per checkpoint (stage, units done,
-throughput, timestamp) to a per-job file, any job type shows up in the app
-automatically — the agent and app stay generic and don't need to know about
-docking or MD specifically.
+## Screens
 
-**Build path:**
-- v0 (built): agent (Python/FastAPI) + SwiftUI app talking to it over the
-  LAN, with Bonjour/mDNS auto-discovery so host/port entry is a fallback
-  rather than the only option; cumulative GPU-hours/$ spent/budget-crossed
-  tracking; a macOS menu bar extra so a Mac left running near the rig acts
-  as an ambient monitor without a window open; best-effort background
-  refresh on iOS.
-- Later, deliberately not built here: a watchOS complication (a genuinely
-  separate multi-weekend target — new platform, new UI, pairing), richer
-  funnel chart interactions, true push notifications (would need an APNs
-  relay server, which contradicts the local-network-only design — see
-  "Alerting" below for what v0 actually delivers instead).
+- **Home** — one card per rig: active campaign + % + ETA (science), the honest
+  spend line (money), temp/util/vram + alert count (machine).
+- **Campaign** — hypothesis, a "you are here" journey strip, the **live
+  result** with per-system sparklines (core RMSF: WT / R104Q / rescued), the
+  job list, and the **so-what** verdict.
+- **Job** — status + honest ETA ("based on last 20 min"), the **metric that
+  matters** with a big value + sparkline, resource sparklines, and a
+  collapsible log tail.
+- **Funnel** — the whole cure journey as one pipeline, with the
+  **SIMULATION WALL**: a hard, always-drawn line between what a GPU can tell
+  you (above) and what only a wet lab can (below). Tap any stage for its
+  honest caveat. This is the honesty contract, rendered.
+- **Alerts** — rare and meaningful only: a failure with its real error, a
+  budget nearing its cap, a batch completing. Normal is silent.
 
-## Why this matters
+## The three "for scientists, not sysadmin" things
 
-The app's job is to make the *dent being made* visible and legible over
-months: total ns simulated, molecules screened, shortlist size, cost — the
-emotional payoff of running a rig continuously for a long-horizon goal.
-`/api/stats` and the dashboard's stats summary card are where this lives:
-cumulative GPU-hours, a $ estimate from a configurable rate, an optional
-budget with a crossed/not-crossed flag, and totals grouped by whatever unit
-each job reports (ns, molecules, ...).
+1. **ETA is first-class and honest** — from measured ns/day, with its
+   confidence window, never a spinner.
+2. **Every run shows its scientific heartbeat** — the salt bridge, the ΔΔG —
+   not just GPU%.
+3. **The funnel refuses to lie** — the wall is always drawn; % is of the
+   computational journey; every stage carries its caveat.
 
-## Alerting: what "push" actually means in v0
+## Transport & privacy
 
-There's no cloud/APNs relay by design — the agent and app only ever talk
-over the LAN. That has a real consequence for alerts:
-
-- **macOS**: the menu bar extra keeps the app process (and its polling loop)
-  alive even with no window open, so local notifications fire whenever the
-  app notices a state transition — this is the closest thing to "always on"
-  v0 has, and it's genuinely reliable as long as the Mac itself is running.
-- **iOS**: `BGAppRefreshTask` gives *best-effort* background polling — iOS
-  decides if/when it actually runs based on usage patterns, battery, and
-  charging state, which in practice can mean anywhere from ~15 minutes to
-  several hours later, or not at all if the app is rarely opened. This is
-  the honest ceiling without a push server component, which was ruled out to
-  keep the "no cloud" property. If reliable phone alerts matter more than
-  "no cloud", that's the tradeoff to revisit later.
-- **Foreground, both platforms**: alerts are immediate and reliable — the
-  store notices transitions on every poll while the app is open.
+Local network only. The rig-side agent serves JSON over the LAN and advertises
+itself via mDNS/Bonjour; the app polls it (pull-to-refresh). No cloud, no
+account. See `agent/README.md`.
 
 ## Status
 
-This repository holds a **scaffold that was never opened in Xcode**: data
-models, a full-ish SwiftUI app (Dashboard with GPU tiles + stats summary,
-Campaign detail with funnel chart, Settings with Bonjour discovery, a macOS
-menu bar extra, iOS background refresh), and the Python agent with mock and
-real (`nvidia-smi`-backed) data sources, mDNS advertisement, and stats/budget
-computation. The agent side has been run and has an automated test suite
-(`agent/tests/`, including a real mDNS register→browse round trip — not
-just "didn't crash"). The Swift side has been reviewed carefully by hand
-(and one systemic decoding bug — see AgentClient's comment on
-`convertFromSnakeCase` — was caught this way) but **still never compiled**;
-see the root `README.md` for what to do once you're on a Mac with Xcode, and
-for which pieces (Bonjour resolution, background refresh, menu bar) are the
-most likely to need a fix on first build.
+The **agent** is built and tested (`agent/tests/`, run in CI-less mock mode
+here — home-is-free cost, the weighted campaign %, the alert rules, checkpoint
+sparklines, and a real mDNS round trip). The **app** is written against the
+exact JSON the agent emits (verified field-by-field) but **has never been
+compiled** — there is no Swift toolchain in the build environment. See the
+root `README.md` for first-build steps on a Mac. The visual system and all
+five screens are in `docs/design/BenchTop-design.html`.

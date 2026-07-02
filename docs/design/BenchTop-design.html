@@ -1,0 +1,345 @@
+<title>BenchTop — Design Workup</title>
+<style>
+  /* ============================================================
+     BenchTop design system — the R104Q cure-project tracker.
+     Screens map 1:1 to the comprehensive tracker guide:
+     Home · Campaign · Job · Funnel · Alerts.
+     Funnel ramp + status colours validated with the dataviz
+     palette script (rationale at the bottom).
+     ============================================================ */
+  :root {
+    color-scheme: dark;
+    --ink:#0A0E16; --surface:#121826; --elevated:#1B2333; --hairline:#26314A;
+    --text-1:#F2F5FA; --text-2:#94A2BC; --text-3:#64708A;
+    --signal:#25D0C4; --signal-2:#12A594;   /* alive / now / active */
+    --gold:#F4C152;                           /* the wall + the wet-lab payoff */
+    --done:#57D373; --fail:#F0574E; --warn:#FBBF24; --idle:#64708A;
+    --sans:-apple-system,"SF Pro Display","SF Pro Text",system-ui,"Segoe UI",sans-serif;
+    --mono:"SF Mono",ui-monospace,"JetBrains Mono","Roboto Mono",monospace;
+    --r-lg:22px; --r-md:16px; --r-sm:10px; --maxw:1180px;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; color:var(--text-1); font-family:var(--sans); line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    background:
+      radial-gradient(1100px 620px at 80% -8%, rgba(37,208,196,.10), transparent 60%),
+      radial-gradient(900px 520px at -6% 10%, rgba(244,193,82,.05), transparent 55%),
+      var(--ink);
+  }
+  .wrap { max-width:var(--maxw); margin:0 auto; padding:clamp(20px,5vw,56px) clamp(16px,4vw,40px); }
+  .num { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+  .eyebrow { font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--text-3); font-weight:700; }
+
+  /* masthead */
+  .mast { display:flex; flex-direction:column; gap:16px; }
+  .mast-top { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .logo { width:34px; height:34px; border-radius:9px; background:linear-gradient(150deg,var(--signal),var(--signal-2));
+    display:grid; place-items:center; color:#06231F; font-weight:800; box-shadow:0 8px 26px -10px rgba(37,208,196,.7); }
+  .brand { font-weight:700; font-size:18px; letter-spacing:-.01em; }
+  .brand small { color:var(--text-3); font-weight:500; }
+  h1 { font-size:clamp(28px,5vw,50px); line-height:1.03; margin:0; letter-spacing:-.03em; font-weight:800; text-wrap:balance; max-width:19ch; }
+  h1 .hl { color:var(--signal); }
+  .lede { color:var(--text-2); font-size:clamp(15px,2vw,18px); max-width:64ch; margin:0; }
+  .purpose { border-left:3px solid var(--signal); padding:6px 0 6px 16px; margin:6px 0 0; color:var(--text-1); font-size:15px; max-width:70ch; }
+
+  section { margin-top:clamp(40px,7vw,80px); }
+  .sec-head { display:flex; align-items:baseline; gap:14px; margin-bottom:20px; flex-wrap:wrap; }
+  .sec-head h2 { font-size:clamp(20px,3vw,27px); margin:0; letter-spacing:-.02em; font-weight:750; }
+  .sec-head p { margin:0; color:var(--text-2); font-size:14px; max-width:56ch; }
+
+  /* device gallery */
+  .devices { display:flex; gap:clamp(20px,4vw,40px); flex-wrap:wrap; justify-content:center; align-items:flex-start; }
+  .device-col { display:flex; flex-direction:column; align-items:center; gap:12px; }
+  .device-label { color:var(--text-2); font-size:13px; } .device-label b { color:var(--text-1); font-weight:650; }
+  .phone { width:360px; max-width:88vw; border-radius:46px; padding:12px; background:linear-gradient(160deg,#232c3e,#0d1220);
+    box-shadow:0 40px 90px -40px rgba(0,0,0,.9),0 0 0 1px rgba(255,255,255,.05); }
+  .screen { background:var(--ink); border-radius:35px; overflow:hidden; position:relative; height:760px; display:flex; flex-direction:column; }
+  .screen.light { color-scheme:light;
+    --ink:#F7F9FB; --surface:#FFFFFF; --elevated:#EEF2F6; --hairline:#DCE3EC;
+    --text-1:#0E1420; --text-2:#55617A; --text-3:#8A94A6;
+    --signal:#0E9C90; --signal-2:#0E9C90; --gold:#B7791F; --done:#1F9D57; --fail:#D64237; --warn:#B7791F; --idle:#8A94A6;
+    background:var(--ink); color:var(--text-1); }
+  .island { position:absolute; top:12px; left:50%; transform:translateX(-50%); width:108px; height:30px; background:#05070c; border-radius:16px; z-index:5; }
+  .statusbar { height:46px; display:flex; align-items:center; justify-content:space-between; padding:0 26px; font-size:13px; font-weight:600; flex:none; }
+  .statusbar .r { color:var(--text-2); }
+  .scroll { flex:1; overflow:hidden; padding:4px 16px 0; }
+  .tabbar { flex:none; height:60px; border-top:1px solid var(--hairline); background:color-mix(in srgb,var(--surface) 70%,transparent);
+    display:flex; align-items:center; justify-content:space-around; padding-bottom:6px; }
+  .tab { display:flex; flex-direction:column; align-items:center; gap:3px; color:var(--text-3); font-size:10px; font-weight:600; }
+  .tab.on { color:var(--signal); } .tab svg { width:21px; height:21px; }
+
+  .app-h { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:6px 2px 10px; }
+  .app-h .title { font-size:22px; font-weight:780; letter-spacing:-.02em; }
+  .app-h .sub { color:var(--text-2); font-size:12px; margin-top:2px; }
+  .card { background:var(--surface); border:1px solid var(--hairline); border-radius:var(--r-md); padding:14px; margin-bottom:12px; }
+  .lab { font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--text-3); font-weight:700; }
+
+  .rowh { display:flex; align-items:center; gap:8px; }
+  .rowh .name { font-weight:650; font-size:14px; } .rowh .gpu { color:var(--text-3); font-size:11px; }
+  .spacer { flex:1; }
+
+  .camp { display:block; text-decoration:none; color:inherit; }
+  .camp .top { display:flex; align-items:center; gap:8px; }
+  .camp .t { font-weight:650; font-size:15px; }
+  .pct { font-family:var(--mono); font-weight:680; font-size:13px; }
+  .bar { height:6px; border-radius:4px; background:color-mix(in srgb,var(--signal) 16%,transparent); margin:7px 0 6px; overflow:hidden; }
+  .bar i { display:block; height:100%; background:var(--signal); border-radius:4px; }
+  .subline { display:flex; justify-content:space-between; font-size:11px; color:var(--text-2); }
+  .subline .eta { color:var(--signal); font-family:var(--mono); font-weight:650; }
+  .rule { height:1px; background:var(--hairline); margin:12px 0; }
+  .money { display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:11px; color:var(--text-2); }
+  .machine { display:flex; align-items:center; gap:16px; margin-top:12px; font-size:11px; color:var(--text-2); }
+  .machine b { font-family:var(--mono); color:var(--text-1); font-weight:600; }
+  .machine .warn { color:var(--warn); }
+  .badge-ok { margin-left:auto; color:var(--text-3); font-size:11px; }
+  .badge-warn { margin-left:auto; color:var(--warn); font-size:11px; font-weight:650; }
+
+  /* live result rows */
+  .series { display:grid; grid-template-columns:58px 84px 1fr; gap:10px; align-items:center; margin-top:10px; }
+  .series .nm { font-weight:650; font-size:12px; }
+  .series .vv { font-family:var(--mono); font-weight:650; font-size:12.5px; }
+  .series .nt { font-size:10px; color:var(--text-2); }
+  .spark { height:26px; }
+  .nm.wt { color:var(--text-2); } .nm.mut { color:var(--fail); } .nm.res { color:var(--done); }
+
+  /* metric-that-matters */
+  .metric-big { font-family:var(--mono); font-weight:800; font-size:34px; letter-spacing:-.02em; }
+  .metric-big span { font-size:15px; color:var(--text-2); font-weight:600; }
+
+  /* funnel */
+  .stage { display:flex; gap:10px; align-items:flex-start; padding:11px 12px; border:1px solid var(--hairline); border-radius:var(--r-sm); background:var(--surface); margin-bottom:8px; }
+  .node { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; flex:none; font-size:11px; font-weight:700; }
+  .node.done { background:color-mix(in srgb,var(--done) 18%,transparent); color:var(--done); }
+  .node.active { background:color-mix(in srgb,var(--signal) 20%,transparent); color:var(--signal); }
+  .node.up { background:transparent; color:var(--text-3); border:1.5px solid var(--hairline); }
+  .stage .sl { font-size:13.5px; font-weight:650; } .stage .up { color:var(--text-2); }
+  .stage .sd { font-size:11px; color:var(--text-3); margin-top:1px; }
+  .stage .cav { font-size:11px; color:var(--text-2); margin-top:6px; }
+  .wall { display:flex; align-items:center; gap:10px; margin:14px 2px; color:var(--gold); font-weight:800; font-size:11px; letter-spacing:.09em; }
+  .wall .ln { flex:1; height:1px; background:color-mix(in srgb,var(--gold) 50%,transparent); }
+  .wall-cav { text-align:center; font-size:11px; color:var(--text-2); font-weight:400; letter-spacing:0; margin:-8px 6px 12px; }
+
+  /* alerts */
+  .alert { display:flex; gap:10px; align-items:flex-start; padding:12px; border-radius:var(--r-sm); background:var(--surface); margin-bottom:8px; border:1px solid var(--hairline); }
+  .alert .ic { font-size:16px; } .alert.crit { border-color:color-mix(in srgb,var(--fail) 40%,transparent); }
+  .alert.warn { border-color:color-mix(in srgb,var(--warn) 40%,transparent); }
+  .alert .at { font-weight:650; font-size:13px; } .alert .ad { font-size:11.5px; color:var(--text-2); }
+  .crit .ic { color:var(--fail); } .warn .ic { color:var(--warn); } .good .ic { color:var(--done); }
+
+  .why { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:14px; }
+  .why .w { border:1px solid var(--hairline); border-radius:var(--r-md); background:var(--surface); padding:16px 18px; }
+  .why .w h3 { margin:0 0 6px; font-size:15px; } .why .w p { margin:0; color:var(--text-2); font-size:13.5px; } .why .tag { color:var(--signal); }
+  .swatches { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
+  .sw { border:1px solid var(--hairline); border-radius:var(--r-sm); background:var(--surface); padding:12px; display:flex; flex-direction:column; gap:8px; }
+  .sw .chip { height:40px; border-radius:7px; } .sw .k { font-weight:650; font-size:13px; } .sw .rl { font-size:11px; color:var(--text-2); } .sw .v { font-size:11px; color:var(--text-3); }
+  .foot { margin-top:60px; padding-top:20px; border-top:1px solid var(--hairline); color:var(--text-3); font-size:12.5px; display:flex; gap:8px; flex-wrap:wrap; }
+</style>
+
+<div class="wrap">
+  <header class="mast">
+    <div class="mast-top">
+      <div class="logo">B</div>
+      <div class="brand">BenchTop <small>· design workup</small></div>
+      <span class="eyebrow" style="margin-left:auto">SwiftUI · iOS + macOS</span>
+    </div>
+    <h1>Is my GPU still doing something useful — and how far is the <span class="hl">R104Q</span> cure?</h1>
+    <p class="lede">A tracker for one long computational hunt: does the SCN5A R104Q variant destabilize the channel's
+      NTD core, and does D84N rescue it? BenchTop turns that question into a glance — in science words, not sysadmin words.</p>
+    <p class="purpose">It answers three questions in priority order: <b>is the science moving</b>, <b>is the money safe</b>,
+      <b>is the machine healthy</b> — machine last, because when things are fine it's the least interesting.</p>
+  </header>
+
+  <section style="margin-top:34px">
+    <div class="sec-head"><h2>The screens</h2>
+      <p>Home glances at each rig; Campaign is where the science lives; Job is the one-run close-up; Funnel is the honest whole-journey map.</p></div>
+
+    <div class="devices">
+      <!-- HOME -->
+      <div class="device-col"><div class="phone"><div class="screen">
+        <div class="island"></div>
+        <div class="statusbar"><span class="num">9:41</span><span class="r num">R104Q ▮▮▮</span></div>
+        <div class="scroll">
+          <div class="app-h"><div><div class="title">Home</div><div class="sub">2 rigs</div></div></div>
+
+          <div class="card">
+            <div class="rowh"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-2)" stroke-width="2"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8"/></svg>
+              <span class="name">Home Rig</span><span class="gpu">RTX 4060 Ti 16 GB</span></div>
+            <a class="camp" style="margin-top:10px">
+              <div class="top"><svg width="12" height="12" viewBox="0 0 24 24" fill="var(--signal)"><path d="M8 5v14l11-7z"/></svg>
+                <span class="t">R104Q · MD replicates</span><span class="spacer"></span><span class="pct">58%</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></div>
+              <div class="bar"><i style="width:58%"></i></div>
+              <div class="subline"><span>3/9 jobs done · 3 running</span><span class="eta">ETA 3h 41m</span></div>
+            </a>
+            <div class="rule"></div>
+            <div class="money"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg>$0.00 · home = free (5.8 kWh)</div>
+            <div class="machine"><span>temp <b>61°</b></span><span>util <b>94%</b></span><span>vram <b>11.2/16</b></span><span class="badge-warn">⚠ 1</span></div>
+          </div>
+
+          <div class="card">
+            <div class="rowh"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-2)" stroke-width="2"><path d="M4 15a4 4 0 010-8 5 5 0 019-2 4 4 0 011 8z"/></svg>
+              <span class="name">Modal L4</span><span class="gpu">NVIDIA L4 24 GB</span></div>
+            <div style="margin-top:10px; color:var(--text-2); font-size:12px">Idle — flagship MD finished</div>
+            <div class="rule"></div>
+            <div class="money"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>$25.00 / $30.00
+              <span class="bar" style="width:70px; margin:0 0 0 6px"><i style="width:83%; background:var(--warn)"></i></span></div>
+            <div class="machine"><span>temp <b>33°</b></span><span>util <b>0%</b></span><span class="badge-warn">⚠ 1</span></div>
+          </div>
+        </div>
+        <nav class="tabbar">
+          <div class="tab on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>Home</div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16M7 12h10M10 19h4"/></svg>Funnel</div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/></svg>Alerts</div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>Settings</div>
+        </nav>
+      </div></div><div class="device-label"><b>Home</b> · science → money → machine</div></div>
+
+      <!-- CAMPAIGN -->
+      <div class="device-col"><div class="phone"><div class="screen">
+        <div class="island"></div>
+        <div class="statusbar"><span class="num">9:41</span><span class="r num">R104Q ▮▮▮</span></div>
+        <div class="scroll">
+          <div class="app-h"><div><div class="title" style="font-size:19px">R104Q · MD replicates</div></div></div>
+          <div class="card"><div class="lab">Hypothesis</div>
+            <div style="font-size:16px; font-weight:650; margin-top:6px">R104Q destabilizes the NTD core; D84N rescues it.</div></div>
+
+          <div class="card">
+            <div class="lab" style="margin-bottom:8px">Live result — core RMSF (res 55–85), Å</div>
+            <div class="series"><span class="nm wt">WT</span>
+              <svg class="spark" viewBox="0 0 84 26" preserveAspectRatio="none"><polyline points="0,16 21,14 42,12 63,10 84,10" fill="none" stroke="var(--text-2)" stroke-width="1.6"/></svg>
+              <div><span class="vv">3.9 Å</span> · <span class="nt">n=1 so far</span></div></div>
+            <div class="series"><span class="nm mut">R104Q</span>
+              <svg class="spark" viewBox="0 0 84 26" preserveAspectRatio="none"><polyline points="0,20 21,15 42,8 63,6 84,4" fill="none" stroke="var(--fail)" stroke-width="1.6"/></svg>
+              <div><span class="vv">5.4 Å</span> · <span class="nt">+37% vs WT</span></div></div>
+            <div class="series"><span class="nm res">rescued</span>
+              <svg class="spark" viewBox="0 0 84 26" preserveAspectRatio="none"><polyline points="0,10 21,11 42,10 63,11 84,10" fill="none" stroke="var(--done)" stroke-width="1.6"/></svg>
+              <div><span class="vv">3.1 Å</span> · <span class="nt">most rigid</span></div></div>
+          </div>
+
+          <div class="lab" style="margin:2px 2px 8px">Jobs (9)</div>
+          <div style="display:flex; gap:8px; margin-bottom:12px; font-size:11px; color:var(--text-2)">
+            <div style="flex:1; background:var(--surface); border:1px solid var(--hairline); border-radius:8px; padding:8px">WT<br><span style="color:var(--done)">✅ ✅</span> <span class="num">▶72</span></div>
+            <div style="flex:1; background:var(--surface); border:1px solid var(--hairline); border-radius:8px; padding:8px">R104Q<br><span style="color:var(--done)">✅</span> <span class="num">▶68</span> <span style="color:var(--fail)">✕</span></div>
+            <div style="flex:1; background:var(--surface); border:1px solid var(--hairline); border-radius:8px; padding:8px">rescued<br><span style="color:var(--done)">✅</span> <span class="num">▶74</span> ⏸</div>
+          </div>
+          <div class="card" style="background:color-mix(in srgb,var(--gold) 12%,transparent); border-color:color-mix(in srgb,var(--gold) 40%,transparent)">
+            <div class="lab" style="color:var(--gold)">So what</div>
+            <div style="font-size:13.5px; margin-top:5px">±error bars pending — need all 3 seeds.</div></div>
+        </div>
+        <nav class="tabbar">
+          <div class="tab on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>Home</div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16M7 12h10M10 19h4"/></svg>Funnel</div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/></svg>Alerts</div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/></svg>Settings</div>
+        </nav>
+      </div></div><div class="device-label"><b>Campaign</b> · where the science lives</div></div>
+
+      <!-- FUNNEL -->
+      <div class="device-col"><div class="phone"><div class="screen light">
+        <div class="island"></div>
+        <div class="statusbar"><span class="num">9:41</span><span class="r num">R104Q ▮▮▮</span></div>
+        <div class="scroll">
+          <div class="app-h"><div><div class="title">Funnel</div><div class="sub">Computational journey — not “% to cure”.</div></div></div>
+          <div class="stage"><div class="node done">✓</div><div><div class="sl">Structure &amp; mechanism</div><div class="sd">8VYJ · R104–D84 3.79 Å salt bridge</div></div></div>
+          <div class="stage"><div class="node done">✓</div><div><div class="sl">Flagship MD (n=1)</div><div class="sd">core RMSF 3.98 → 5.46 → 3.09 ✓</div></div></div>
+          <div class="stage" style="border-color:color-mix(in srgb,var(--signal) 45%,transparent)"><div class="node active">●</div><div><div class="sl">MD replicates (n=3)</div><div class="sd">error bars — the current gap</div><div class="cav">Where a real signal separates from noise.</div></div></div>
+          <div class="stage"><div class="node up">○</div><div><div class="sl up">FEP ΔΔG_fold</div></div></div>
+          <div class="wall"><span class="ln"></span>✋ SIMULATION WALL<span class="ln"></span></div>
+          <div class="wall-cav">Everything above is what a GPU can tell you. Nothing below is.</div>
+          <div class="stage"><div class="node up">○</div><div><div class="sl up">Wet-lab: patch-clamp / trafficking</div></div></div>
+          <div class="stage"><div class="node up">○</div><div><div class="sl up">Clinical — ICD already protects today</div></div></div>
+        </div>
+        <nav class="tabbar">
+          <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>Home</div>
+          <div class="tab on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16M7 12h10M10 19h4"/></svg>Funnel</div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/></svg>Alerts</div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/></svg>Settings</div>
+        </nav>
+      </div></div><div class="device-label"><b>Funnel</b> · the honesty contract (light mode)</div></div>
+    </div>
+  </section>
+
+  <!-- JOB + ALERTS detail strip -->
+  <section>
+    <div class="sec-head"><h2>Job &amp; alerts</h2><p>Every run shows its own scientific heartbeat; alerts stay rare — good news you waited for, or something that needs your hand.</p></div>
+    <div class="devices">
+      <div class="device-col"><div class="phone"><div class="screen">
+        <div class="island"></div>
+        <div class="statusbar"><span class="num">9:41</span><span class="r num">R104Q ▮▮▮</span></div>
+        <div class="scroll">
+          <div class="app-h"><div><div class="title" style="font-size:19px">WT · seed 2</div></div></div>
+          <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center"><span style="color:var(--signal); font-weight:650; font-size:12px">▶ Running</span><span class="num" style="font-weight:650">72 / 100 ns</span></div>
+            <div class="bar" style="margin-top:10px"><i style="width:72%"></i></div>
+            <div class="machine"><span>ETA <b>3h 41m</b></span><span>rate <b>611 ns/day</b></span></div>
+            <div style="font-size:10.5px; color:var(--text-3); margin-top:4px">based on last 20 min</div>
+          </div>
+          <div class="card">
+            <div class="lab">The metric that matters · MD</div>
+            <div class="metric-big" style="margin-top:6px">3.1 <span>Å</span></div>
+            <div style="font-size:11px; color:var(--text-2)">R104–D84 min distance</div>
+            <svg class="spark" style="height:44px; width:100%; margin-top:8px" viewBox="0 0 260 44" preserveAspectRatio="none">
+              <polyline points="0,20 28,26 56,12 84,2 112,22 140,28 168,18 196,8 224,26 260,22" fill="none" stroke="var(--signal)" stroke-width="1.8"/></svg>
+            <div style="font-size:11px; color:var(--text-3); margin-top:4px">58% occupancy &lt;4 Å</div>
+          </div>
+          <div class="card">
+            <div class="lab">Resources</div>
+            <div class="machine" style="margin-top:8px"><span>temp <b>61°</b></span><span>util <b>94%</b></span><span>vram <b>11.2/16</b></span><span>power <b>168 W</b></span></div>
+          </div>
+        </div>
+        <nav class="tabbar">
+          <div class="tab on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>Home</div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16M7 12h10M10 19h4"/></svg>Funnel</div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/></svg>Alerts</div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/></svg>Settings</div>
+        </nav>
+      </div></div><div class="device-label"><b>Job</b> · the scientific heartbeat</div></div>
+
+      <div class="device-col"><div class="phone"><div class="screen">
+        <div class="island"></div>
+        <div class="statusbar"><span class="num">9:41</span><span class="r num">R104Q ▮▮▮</span></div>
+        <div class="scroll">
+          <div class="app-h"><div><div class="title">Alerts</div><div class="sub">Rare and meaningful.</div></div></div>
+          <div class="alert crit"><span class="ic">⛔</span><div><div class="at">R104Q · seed 3 failed</div><div class="ad">CUDA OOM at 8 ns — reduce cutoff or free VRAM</div></div></div>
+          <div class="alert warn"><span class="ic">⚠️</span><div><div class="at">Modal L4 approaching cap</div><div class="ad">$25 of $30 — $5 left.</div></div></div>
+          <div class="alert good"><span class="ic">✅</span><div><div class="at">WT · seed 1 done</div><div class="ad">100 ns complete.</div></div></div>
+          <div class="alert good"><span class="ic">✅</span><div><div class="at">R104Q · flagship MD — batch complete</div><div class="ad">R104Q +37% core RMSF; D84N rescues below WT.</div></div></div>
+        </div>
+        <nav class="tabbar">
+          <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>Home</div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16M7 12h10M10 19h4"/></svg>Funnel</div>
+          <div class="tab on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/></svg>Alerts</div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/></svg>Settings</div>
+        </nav>
+      </div></div><div class="device-label"><b>Alerts</b> · normal is silent</div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>Palette</h2><p>One teal accent for “alive / now”; gold reserved for the two things that mean “beyond compute” — the wall and the wet-lab payoff. Status hues always ship with an icon + label.</p></div>
+    <div class="swatches">
+      <div class="sw"><div class="chip" style="background:#0A0E16"></div><div><div class="k">Ink</div><div class="rl">ground</div></div><div class="v num">#0A0E16</div></div>
+      <div class="sw"><div class="chip" style="background:#25D0C4"></div><div><div class="k">Signal</div><div class="rl">alive / now</div></div><div class="v num">#25D0C4</div></div>
+      <div class="sw"><div class="chip" style="background:#F4C152"></div><div><div class="k">Gold</div><div class="rl">wall + wet lab</div></div><div class="v num">#F4C152</div></div>
+      <div class="sw"><div class="chip" style="background:#57D373"></div><div><div class="k">Done</div><div class="rl">status</div></div><div class="v num">#57D373</div></div>
+      <div class="sw"><div class="chip" style="background:#F0574E"></div><div><div class="k">Failed</div><div class="rl">status</div></div><div class="v num">#F0574E</div></div>
+      <div class="sw"><div class="chip" style="background:#FBBF24"></div><div><div class="k">Budget</div><div class="rl">warning</div></div><div class="v num">#FBBF24</div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>Why these choices</h2><p>Straight from the three things that make it “for scientists”, not a sysadmin dashboard.</p></div>
+    <div class="why">
+      <div class="w"><h3>The funnel refuses to lie</h3><p>The <span class="tag">SIMULATION WALL</span> is always drawn — a hard line between what a GPU can tell you and what only a wet lab can. Percentages are of the computational journey, never “% to cure”.</p></div>
+      <div class="w"><h3>Every run has a heartbeat</h3><p>MD shows the salt bridge, FEP shows ΔΔG, docking shows the best hit. You watch the <span class="tag">science</span> converge live, not a generic progress bar.</p></div>
+      <div class="w"><h3>Honest about money</h3><p>Home GPU-hours are free and shown in kWh; real dollars appear only for cloud rigs. The app never pretends your 4060 Ti costs Modal money.</p></div>
+      <div class="w"><h3>ETA is first-class</h3><p>Computed from measured ns/day, with the confidence window shown — “ETA 3h 41m · based on last 20 min”, not a spinner.</p></div>
+      <div class="w"><h3>Science leads, machine trails</h3><p>Every rig card answers <span class="tag">is the science moving</span> first, money second, thermals last — because when things are fine, util is the least interesting number.</p></div>
+      <div class="w"><h3>Alerts stay rare</h3><p>Only good news you were waiting for, or something that needs your hand — a failure with its real error, a budget nearing its cap. Normal is silent.</p></div>
+    </div>
+  </section>
+
+  <footer class="foot"><span>BenchTop — the R104Q cure-project tracker.</span>
+    <span class="num" style="margin-left:auto">tokens → BenchTop/Sources/BenchTop/DesignSystem.swift</span></footer>
+</div>

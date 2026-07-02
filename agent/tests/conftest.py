@@ -1,4 +1,3 @@
-import dataclasses
 import json
 from pathlib import Path
 
@@ -13,8 +12,8 @@ def real_mode_settings(tmp_path: Path) -> Settings:
     return Settings(data_dir=tmp_path, mock=False)
 
 
-def write_manifest(data_dir: Path, jobs: list[dict]) -> None:
-    (data_dir / "jobs.json").write_text(json.dumps(jobs))
+def write_json(data_dir: Path, name: str, payload) -> None:
+    (data_dir / name).write_text(json.dumps(payload))
 
 
 def write_checkpoints(data_dir: Path, job_id: str, lines: list[dict]) -> None:

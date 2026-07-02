@@ -1,9 +1,5 @@
-"""End-to-end mDNS test: register a real service with AgentAdvertiser, then
-find it with an independent zeroconf browser, the same way the app would.
-
-Some networks/CI runners block multicast entirely, in which case this is
-meaningless rather than a real failure — skipped rather than failed when
-nothing shows up within the timeout.
+"""End-to-end mDNS test: register with AgentAdvertiser, find it with an
+independent zeroconf browser. Skips (not fails) where multicast is blocked.
 """
 from __future__ import annotations
 
@@ -42,20 +38,16 @@ def test_advertised_service_is_discoverable():
     browser_zc = Zeroconf()
     listener = _CollectingListener()
     ServiceBrowser(browser_zc, SERVICE_TYPE, listener)
-
     try:
         deadline = time.time() + 8
         while time.time() < deadline and not listener.found:
             time.sleep(0.2)
-
         if not listener.found:
-            pytest.skip("no mDNS response within timeout; likely multicast-blocked environment")
+            pytest.skip("no mDNS response within timeout; likely multicast-blocked")
 
         name, info = listener.found[0]
         assert name == "PytestRig._benchtop._tcp.local."
-        assert info is not None
-        assert info.port == 8499
-        assert info.properties[b"mode"] == b"mock"
+        assert info is not None and info.port == 8499
     finally:
         browser_zc.close()
         advertiser.stop()

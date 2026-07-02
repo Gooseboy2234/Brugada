@@ -1,0 +1,30 @@
+[
+  {
+    "id": "home",
+    "name": "Home Rig",
+    "gpu_model": "RTX 4060 Ti 16 GB",
+    "vram_gb": 16.0,
+    "vram_used_gb": 11.2,
+    "temp_c": 61.0,
+    "util_percent": 94.0,
+    "power_w": 168.0,
+    "dollars_per_hour": 0.0,
+    "is_cloud": false,
+    "uptime_hours": 34.5,
+    "budget_usd": null
+  },
+  {
+    "id": "modal",
+    "name": "Modal L4",
+    "gpu_model": "NVIDIA L4 24 GB",
+    "vram_gb": 24.0,
+    "vram_used_gb": 0.4,
+    "temp_c": 33.0,
+    "util_percent": 0.0,
+    "power_w": 28.0,
+    "dollars_per_hour": 0.80,
+    "is_cloud": true,
+    "uptime_hours": 0.0,
+    "budget_usd": 30.0
+  }
+]

@@ -1,10 +1,7 @@
 import Foundation
 
-enum JobKind: String, Codable, Hashable {
-    case dockingScreen = "docking_screen"
-    case mdSimulation = "md_simulation"
-    case mlSurrogate = "ml_surrogate"
-    case other
+enum JobKind: String, Decodable, Hashable {
+    case md, fep, docking, folding, other
 
     init(from decoder: Decoder) throws {
         let raw = try decoder.singleValueContainer().decode(String.self)
@@ -12,12 +9,8 @@ enum JobKind: String, Codable, Hashable {
     }
 }
 
-enum JobStatus: String, Codable, Hashable {
-    case queued
-    case running
-    case completed
-    case failed
-    case unknown
+enum JobStatus: String, Decodable, Hashable {
+    case queued, running, done, failed, unknown
 
     init(from decoder: Decoder) throws {
         let raw = try decoder.singleValueContainer().decode(String.self)
@@ -25,23 +18,34 @@ enum JobStatus: String, Codable, Hashable {
     }
 }
 
-/// A single unit of work in a campaign (e.g. one docking screen, one MD
-/// triage run), as reported by the BenchTop agent from a job's checkpoint
-/// stream.
-struct Job: Identifiable, Codable, Hashable {
+/// The one scientifically-meaningful heartbeat for a job's type — MD's
+/// salt-bridge distance, FEP's ΔΔG, docking's best score. Mirrors
+/// agent JobMetric.
+struct JobMetric: Decodable, Hashable {
+    var label: String
+    var value: Double
+    var unit: String
+    var note: String?
+    var sparkline: [Double]
+}
+
+/// One concrete run. Mirrors agent/benchtop_agent/models.py:Job.
+struct Job: Identifiable, Decodable, Hashable {
     var id: String
     var campaignID: String
-    var name: String
+    var tag: String
     var kind: JobKind
-    var gpuID: String?
     var status: JobStatus
-    var stage: String
     var unitsDone: Double
     var unitsTotal: Double?
     var unitLabel: String
-    var throughputPerHour: Double?
-    var startedAt: Date
-    var lastCheckpointAt: Date
+    var ratePerDay: Double?
+    var rateWindowMinutes: Int?
+    var costSoFar: Double
+    var metric: JobMetric?
+    var tempSpark: [Double]
+    var utilSpark: [Double]
+    var logTail: [String]
     var errorMessage: String?
 
     var fractionDone: Double? {
@@ -49,27 +53,63 @@ struct Job: Identifiable, Codable, Hashable {
         return min(max(unitsDone / unitsTotal, 0), 1)
     }
 
-    /// Estimated time remaining, derived from the last-reported throughput.
-    var estimatedTimeRemaining: TimeInterval? {
-        guard let unitsTotal, let throughputPerHour, throughputPerHour > 0 else { return nil }
+    /// Honest ETA from measured throughput (ns/day). Returns the interval and
+    /// the confidence window it's based on, so the UI can say "based on last
+    /// 20 min".
+    var eta: (remaining: TimeInterval, windowMinutes: Int?)? {
+        guard let unitsTotal, let ratePerDay, ratePerDay > 0, unitLabel == "ns" else { return nil }
         let remainingUnits = max(unitsTotal - unitsDone, 0)
-        return (remainingUnits / throughputPerHour) * 3600
+        let days = remainingUnits / ratePerDay
+        return (days * 86_400, rateWindowMinutes)
     }
 
-    // Explicit, exact mapping to the agent's snake_case JSON keys — see
-    // AgentClient's comment on why convertFromSnakeCase isn't used.
     private enum CodingKeys: String, CodingKey {
         case id
         case campaignID = "campaign_id"
-        case name, kind
-        case gpuID = "gpu_id"
-        case status, stage
+        case tag, kind, status
         case unitsDone = "units_done"
         case unitsTotal = "units_total"
         case unitLabel = "unit_label"
-        case throughputPerHour = "throughput_per_hour"
-        case startedAt = "started_at"
-        case lastCheckpointAt = "last_checkpoint_at"
+        case ratePerDay = "rate_per_day"
+        case rateWindowMinutes = "rate_window_minutes"
+        case costSoFar = "cost_so_far"
+        case metric
+        case tempSpark = "temp_spark"
+        case utilSpark = "util_spark"
+        case logTail = "log_tail"
         case errorMessage = "error_message"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        campaignID = try c.decode(String.self, forKey: .campaignID)
+        tag = try c.decode(String.self, forKey: .tag)
+        kind = try c.decode(JobKind.self, forKey: .kind)
+        status = try c.decode(JobStatus.self, forKey: .status)
+        unitsDone = try c.decode(Double.self, forKey: .unitsDone)
+        unitsTotal = try c.decodeIfPresent(Double.self, forKey: .unitsTotal)
+        unitLabel = try c.decode(String.self, forKey: .unitLabel)
+        ratePerDay = try c.decodeIfPresent(Double.self, forKey: .ratePerDay)
+        rateWindowMinutes = try c.decodeIfPresent(Int.self, forKey: .rateWindowMinutes)
+        costSoFar = try c.decodeIfPresent(Double.self, forKey: .costSoFar) ?? 0
+        metric = try c.decodeIfPresent(JobMetric.self, forKey: .metric)
+        tempSpark = try c.decodeIfPresent([Double].self, forKey: .tempSpark) ?? []
+        utilSpark = try c.decodeIfPresent([Double].self, forKey: .utilSpark) ?? []
+        logTail = try c.decodeIfPresent([String].self, forKey: .logTail) ?? []
+        errorMessage = try c.decodeIfPresent(String.self, forKey: .errorMessage)
+    }
+
+    // Memberwise init for previews (declaring init(from:) suppresses the synthesized one).
+    init(id: String, campaignID: String, tag: String, kind: JobKind, status: JobStatus,
+         unitsDone: Double, unitsTotal: Double?, unitLabel: String, ratePerDay: Double? = nil,
+         rateWindowMinutes: Int? = nil, costSoFar: Double = 0, metric: JobMetric? = nil,
+         tempSpark: [Double] = [], utilSpark: [Double] = [], logTail: [String] = [],
+         errorMessage: String? = nil) {
+        self.id = id; self.campaignID = campaignID; self.tag = tag; self.kind = kind
+        self.status = status; self.unitsDone = unitsDone; self.unitsTotal = unitsTotal
+        self.unitLabel = unitLabel; self.ratePerDay = ratePerDay; self.rateWindowMinutes = rateWindowMinutes
+        self.costSoFar = costSoFar; self.metric = metric; self.tempSpark = tempSpark
+        self.utilSpark = utilSpark; self.logTail = logTail; self.errorMessage = errorMessage
     }
 }

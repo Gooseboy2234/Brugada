@@ -1,142 +1,120 @@
 import XCTest
 @testable import BenchTop
 
+/// These decode the exact JSON the agent emits (see agent/tests/test_api.py),
+/// through the same decoder the app uses — so they fail if the wire contract
+/// or the CodingKeys ever drift apart.
 final class ModelDecodingTests: XCTestCase {
-    // Matches AgentClient's decoder exactly: no key conversion, since every
-    // model declares explicit CodingKeys for its snake_case JSON keys.
-    private func makeDecoder() -> JSONDecoder {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return decoder
-    }
+    private func makeDecoder() -> JSONDecoder { AgentClient.makeDecoder() }
 
-    func testDecodeGPUStatus() throws {
+    func testDecodeRigHonestCost() throws {
         let json = """
         {
-          "id": "gpu-0",
-          "index": 0,
-          "name": "NVIDIA GeForce RTX 4060 Ti",
-          "utilization_percent": 87,
-          "memory_used_mb": 9200,
-          "memory_total_mb": 16384,
-          "temperature_c": 68,
-          "power_watts": 145,
-          "current_job_id": "job-42"
+          "id": "home", "name": "Home Rig", "gpu_model": "RTX 4060 Ti 16 GB",
+          "vram_gb": 16, "vram_used_gb": 11.2, "temp_c": 61, "util_percent": 94, "power_w": 168,
+          "dollars_per_hour": 0, "is_cloud": false, "uptime_hours": 34.5,
+          "cost_this_week": 0, "energy_kwh_this_week": 5.8, "budget_usd": null
         }
         """.data(using: .utf8)!
-
-        let gpu = try makeDecoder().decode(GPUStatus.self, from: json)
-        XCTAssertEqual(gpu.id, "gpu-0")
-        XCTAssertEqual(gpu.currentJobID, "job-42")
-        XCTAssertEqual(gpu.memoryUsedFraction, 9200.0 / 16384.0, accuracy: 0.0001)
+        let rig = try makeDecoder().decode(Rig.self, from: json)
+        XCTAssertEqual(rig.gpuModel, "RTX 4060 Ti 16 GB")
+        XCTAssertFalse(rig.isCloud)
+        XCTAssertNil(rig.budgetUSD)
+        XCTAssertTrue(rig.spendSummary.contains("home = free"))
+        XCTAssertNil(rig.budgetFraction)
     }
 
-    func testDecodeJobAndDerivedProgress() throws {
+    func testDecodeCloudRigBudgetFraction() throws {
         let json = """
         {
-          "id": "job-42",
-          "campaign_id": "campaign-r104q",
-          "name": "R104Q NTD pocket MD",
-          "kind": "md_simulation",
-          "gpu_id": "gpu-0",
-          "status": "running",
-          "stage": "Production run",
-          "units_done": 63,
-          "units_total": 200,
-          "unit_label": "ns",
-          "throughput_per_hour": 22.5,
-          "started_at": "2026-06-30T12:00:00Z",
-          "last_checkpoint_at": "2026-07-02T08:00:00Z",
-          "error_message": null
+          "id": "modal", "name": "Modal L4", "gpu_model": "NVIDIA L4 24 GB",
+          "vram_gb": 24, "vram_used_gb": 0.4, "temp_c": 33, "util_percent": 0, "power_w": 28,
+          "dollars_per_hour": 0.8, "is_cloud": true, "uptime_hours": 0,
+          "cost_this_week": 25, "energy_kwh_this_week": 0, "budget_usd": 30
         }
         """.data(using: .utf8)!
+        let rig = try makeDecoder().decode(Rig.self, from: json)
+        XCTAssertTrue(rig.isCloud)
+        XCTAssertEqual(rig.budgetFraction ?? 0, 25.0 / 30.0, accuracy: 0.001)
+        XCTAssertTrue(rig.spendSummary.contains("$25"))
+    }
 
+    func testDecodeCampaignWithFunnelWallAndLiveResult() throws {
+        let json = """
+        {
+          "id": "r104q-replicates", "rig_id": "home", "title": "R104Q · MD replicates",
+          "hypothesis": "R104Q destabilizes the NTD core; D84N rescues it.",
+          "funnel": [
+            {"index": 4, "label": "Flagship MD (n=1)", "status": "done", "detail": "mechanism"},
+            {"index": 5, "label": "MD replicates (n=3)", "status": "active", "caveat": "signal vs noise"},
+            {"index": 8, "label": "SIMULATION WALL", "status": "upcoming", "is_wall": true, "caveat": "nothing below is GPU-knowable"}
+          ],
+          "live_result": {
+            "metric_label": "core RMSF (res 55–85)", "unit": "Å",
+            "series": [
+              {"name": "WT", "value": 3.9, "unit": "Å", "note": "n=1", "sparkline": [3.6, 3.9]},
+              {"name": "R104Q", "value": 5.4, "unit": "Å", "note": "+37% vs WT", "sparkline": [4.6, 5.4]},
+              {"name": "rescued", "value": 3.1, "unit": "Å", "note": "most rigid", "sparkline": [3.2, 3.1]}
+            ]
+          },
+          "so_what": "±error bars pending — need all 3 seeds.",
+          "percent_complete": 0.58
+        }
+        """.data(using: .utf8)!
+        let campaign = try makeDecoder().decode(Campaign.self, from: json)
+        XCTAssertEqual(campaign.hypothesis.hasPrefix("R104Q"), true)
+        XCTAssertEqual(campaign.activeStage?.label, "MD replicates (n=3)")
+        XCTAssertTrue(campaign.funnel.contains { $0.isWall })
+        XCTAssertEqual(campaign.liveResult?.series.map(\.name), ["WT", "R104Q", "rescued"])
+        XCTAssertEqual(campaign.percentComplete ?? 0, 0.58, accuracy: 0.001)
+    }
+
+    func testDecodeMDJobMetricAndETA() throws {
+        let json = """
+        {
+          "id": "wt-s2", "campaign_id": "r104q-replicates", "tag": "WT · seed 2", "kind": "md",
+          "status": "running", "units_done": 72, "units_total": 100, "unit_label": "ns",
+          "rate_per_day": 611, "rate_window_minutes": 20, "cost_so_far": 0,
+          "metric": {"label": "R104–D84 min distance", "value": 3.1, "unit": "Å",
+                     "note": "58% occupancy <4 Å", "sparkline": [3.4, 3.0, 3.1]},
+          "temp_spark": [60, 61], "util_spark": [95, 94],
+          "log_tail": ["salt-bridge 3.1 Å", "wrote frame 720"]
+        }
+        """.data(using: .utf8)!
         let job = try makeDecoder().decode(Job.self, from: json)
-        XCTAssertEqual(job.kind, .mdSimulation)
-        XCTAssertEqual(job.status, .running)
-        XCTAssertEqual(job.fractionDone ?? 0, 63.0 / 200.0, accuracy: 0.0001)
+        XCTAssertEqual(job.kind, .md)
+        XCTAssertEqual(job.fractionDone ?? 0, 0.72, accuracy: 0.001)
+        XCTAssertEqual(job.metric?.note, "58% occupancy <4 Å")
+        XCTAssertEqual(job.logTail.count, 2)
 
-        let remainingUnits = 200.0 - 63.0
-        let expectedSeconds = (remainingUnits / 22.5) * 3600
-        XCTAssertEqual(job.estimatedTimeRemaining ?? 0, expectedSeconds, accuracy: 1)
+        let eta = try XCTUnwrap(job.eta)
+        // 28 ns left at 611 ns/day ≈ 0.0458 day ≈ 3,958 s.
+        XCTAssertEqual(eta.remaining, 28.0 / 611.0 * 86_400, accuracy: 1)
+        XCTAssertEqual(eta.windowMinutes, 20)
     }
 
-    func testUnknownJobKindAndStatusFallBackGracefully() throws {
+    func testUnknownEnumsFallBackGracefully() throws {
         let json = """
         {
-          "id": "job-1",
-          "campaign_id": "campaign-x",
-          "name": "Mystery job",
-          "kind": "quantum_annealing",
-          "status": "vibing",
-          "stage": "?",
-          "units_done": 0,
-          "unit_label": "steps",
-          "started_at": "2026-06-30T12:00:00Z",
-          "last_checkpoint_at": "2026-06-30T12:00:00Z"
+          "id": "x", "campaign_id": "c", "tag": "t", "kind": "quantum", "status": "vibing",
+          "units_done": 0, "unit_label": "ns"
         }
         """.data(using: .utf8)!
-
         let job = try makeDecoder().decode(Job.self, from: json)
         XCTAssertEqual(job.kind, .other)
         XCTAssertEqual(job.status, .unknown)
-        XCTAssertNil(job.fractionDone)
-        XCTAssertNil(job.estimatedTimeRemaining)
+        XCTAssertNil(job.metric)
+        XCTAssertTrue(job.logTail.isEmpty)
     }
 
-    func testDecodeCampaignFunnel() throws {
+    func testDecodeAlert() throws {
         let json = """
-        {
-          "id": "campaign-r104q",
-          "name": "SCN5A-R104Q",
-          "target": "SCN5A R104Q NTD pocket",
-          "funnel": [
-            {"name": "Enamine slice screened", "count": 1200000},
-            {"name": "Passed MD triage", "count": 4800},
-            {"name": "Shortlisted", "count": 5}
-          ]
-        }
+        [{"id": "fail-mut-s3", "kind": "job_failed", "severity": "critical",
+          "title": "R104Q · seed 3 failed", "detail": "CUDA OOM at 8 ns", "rig_id": "home"}]
         """.data(using: .utf8)!
-
-        let campaign = try makeDecoder().decode(Campaign.self, from: json)
-        XCTAssertEqual(campaign.startCount, 1_200_000)
-        XCTAssertEqual(campaign.latestCount, 5)
-    }
-
-    func testDecodeStats() throws {
-        // Shape verified against a live agent response in agent/tests/test_api.py.
-        let json = """
-        {
-          "total_gpu_hours": 12.5,
-          "total_cost_usd": 3.75,
-          "budget_usd": 10.0,
-          "budget_crossed": false,
-          "totals_by_unit": {"ns": 75.0, "molecules": 1200000.0}
-        }
-        """.data(using: .utf8)!
-
-        let stats = try makeDecoder().decode(Stats.self, from: json)
-        XCTAssertEqual(stats.totalGPUHours, 12.5, accuracy: 0.0001)
-        XCTAssertEqual(stats.totalCostUSD, 3.75, accuracy: 0.0001)
-        XCTAssertEqual(stats.budgetUSD, 10.0)
-        XCTAssertFalse(stats.budgetCrossed)
-        XCTAssertEqual(stats.totalsByUnit["molecules"], 1_200_000)
-        XCTAssertEqual(stats.budgetFraction ?? 0, 0.375, accuracy: 0.0001)
-    }
-
-    func testDecodeStatsWithNoBudgetConfigured() throws {
-        let json = """
-        {
-          "total_gpu_hours": 0,
-          "total_cost_usd": 0,
-          "budget_usd": null,
-          "budget_crossed": false,
-          "totals_by_unit": {}
-        }
-        """.data(using: .utf8)!
-
-        let stats = try makeDecoder().decode(Stats.self, from: json)
-        XCTAssertNil(stats.budgetUSD)
-        XCTAssertNil(stats.budgetFraction)
+        let alerts = try makeDecoder().decode([Alert].self, from: json)
+        XCTAssertEqual(alerts.first?.kind, .jobFailed)
+        XCTAssertEqual(alerts.first?.severity, .critical)
+        XCTAssertEqual(alerts.first?.rigID, "home")
     }
 }

@@ -1,57 +1,60 @@
 #if os(macOS)
 import SwiftUI
 
-/// Compact content for the macOS menu bar extra — lets a Mac left running
-/// near the rig act as an ambient monitor without keeping the full window
-/// open. Deliberately minimal: GPU utilization + current job progress and
-/// the stats line, no navigation.
+/// Compact menu bar content — lets a Mac near the rig act as an ambient
+/// monitor without a window open. Science first: the active campaign and its
+/// progress, then the honest spend line, then temp.
 struct MenuBarSummaryView: View {
     @EnvironmentObject private var store: BenchTopStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if store.gpus.isEmpty {
-                Text("No GPUs reported")
-                    .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: Theme.Space.s) {
+            if store.rigs.isEmpty {
+                Text("No rig reported").font(.caption).foregroundStyle(Theme.Palette.textSecondary)
             } else {
-                ForEach(store.gpus) { gpu in
-                    let job = store.job(runningOn: gpu)
-                    HStack {
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(gpu.name)
-                                .font(.caption.weight(.medium))
-                                .lineLimit(1)
-                            Text(job?.stage ?? "Idle")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
+                ForEach(store.rigs) { rig in
+                    let campaign = store.activeCampaign(on: rig)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack {
+                            Text(rig.name).font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Theme.Palette.textPrimary)
+                            Spacer()
+                            if let pct = campaign?.percentComplete {
+                                Text(pct, format: .percent.precision(.fractionLength(0)))
+                                    .font(.btData(12)).foregroundStyle(Theme.Palette.signal)
+                            }
                         }
-                        Spacer()
-                        if let fraction = job?.fractionDone {
-                            Text(fraction, format: .percent.precision(.fractionLength(0)))
-                                .font(.caption.monospacedDigit())
+                        if let campaign {
+                            Text(campaign.title).font(.btCaption)
+                                .foregroundStyle(Theme.Palette.textSecondary).lineLimit(1)
+                        }
+                        HStack {
+                            Text(rig.spendSummary).font(.btData(10))
+                                .foregroundStyle(Theme.Palette.textTertiary).lineLimit(1)
+                            Spacer()
+                            Text("\(Int(rig.tempC))°")
+                                .font(.btData(10))
+                                .foregroundStyle(rig.tempC >= 80 ? Theme.Palette.statusWarning : Theme.Palette.textTertiary)
                         }
                     }
+                    if rig.id != store.rigs.last?.id { Divider() }
                 }
             }
 
-            if let stats = store.stats {
+            let needsHand = store.alerts.filter { $0.severity != .good }.count
+            if needsHand > 0 {
                 Divider()
-                Text("\(stats.totalGPUHours.formatted(.number.precision(.fractionLength(1)))) GPU-hrs · \(stats.totalCostUSD.formatted(.currency(code: "USD")))")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                Label("\(needsHand) alert\(needsHand == 1 ? "" : "s") need attention", systemImage: "exclamationmark.triangle.fill")
+                    .font(.btCaption).foregroundStyle(Theme.Palette.statusWarning)
             }
 
             if let lastError = store.lastError {
                 Divider()
-                Text(lastError)
-                    .font(.caption2)
-                    .foregroundStyle(.orange)
-                    .lineLimit(2)
+                Text(lastError).font(.btCaption).foregroundStyle(Theme.Palette.statusWarning).lineLimit(2)
             }
         }
-        .padding(12)
-        .frame(width: 220)
+        .padding(Theme.Space.m)
+        .frame(width: 250)
     }
 }
 #endif

@@ -1,22 +1,22 @@
 import Foundation
 
 /// Central observable store: polls the agent on an interval and republishes
-/// its state for the views. Also the place that notices state transitions
-/// (job finished, job failed, budget crossed) and asks NotificationManager
-/// to alert on them.
+/// Rig / Campaign / Job / Alert state. Also raises local notifications when a
+/// new alert appears (job done, job failed, thermal, budget) — rare and
+/// meaningful, never "FYI util is high".
 @MainActor
 final class BenchTopStore: ObservableObject {
-    @Published private(set) var gpus: [GPUStatus] = []
-    @Published private(set) var jobs: [Job] = []
+    @Published private(set) var rigs: [Rig] = []
     @Published private(set) var campaigns: [Campaign] = []
-    @Published private(set) var stats: Stats?
+    @Published private(set) var jobs: [Job] = []
+    @Published private(set) var alerts: [Alert] = []
     @Published private(set) var lastError: String?
     @Published private(set) var lastUpdated: Date?
 
     private let config: AgentConfig
     private let notifications: NotificationManaging
-    private var previousJobStatus: [String: JobStatus] = [:]
-    private var previousBudgetCrossed: Bool?
+    private var knownAlertIDs: Set<String> = []
+    private var seededAlertBaseline = false
     private var pollTask: Task<Void, Never>?
 
     init(config: AgentConfig, notifications: NotificationManaging = NotificationManager()) {
@@ -40,27 +40,23 @@ final class BenchTopStore: ObservableObject {
         pollTask = nil
     }
 
-    /// One refresh cycle: fetch everything, update published state, and
-    /// raise any alerts warranted by what changed. Returns whether the
-    /// refresh succeeded, so callers driving a background task (e.g. iOS
-    /// BGTaskScheduler) can decide whether to report new data.
     @discardableResult
     func refresh() async -> Bool {
         let client = AgentClient(config: config)
         do {
-            async let gpusFetch = client.fetchGPUs()
-            async let jobsFetch = client.fetchJobs()
+            async let rigsFetch = client.fetchRigs()
             async let campaignsFetch = client.fetchCampaigns()
-            async let statsFetch = client.fetchStats()
-            let (newGPUs, newJobs, newCampaigns, newStats) = try await (gpusFetch, jobsFetch, campaignsFetch, statsFetch)
+            async let jobsFetch = client.fetchJobs()
+            async let alertsFetch = client.fetchAlerts()
+            let (newRigs, newCampaigns, newJobs, newAlerts) =
+                try await (rigsFetch, campaignsFetch, jobsFetch, alertsFetch)
 
-            noticeJobTransitions(from: newJobs)
-            noticeBudgetTransition(from: newStats)
+            noticeNewAlerts(newAlerts)
 
-            gpus = newGPUs
-            jobs = newJobs
+            rigs = newRigs
             campaigns = newCampaigns
-            stats = newStats
+            jobs = newJobs
+            alerts = newAlerts
             lastError = nil
             lastUpdated = Date()
             return true
@@ -70,55 +66,47 @@ final class BenchTopStore: ObservableObject {
         }
     }
 
-    func campaign(for job: Job) -> Campaign? {
-        campaigns.first { $0.id == job.campaignID }
+    // MARK: - Lookups
+
+    func campaigns(on rig: Rig) -> [Campaign] { campaigns.filter { $0.rigID == rig.id } }
+    func alerts(on rig: Rig) -> [Alert] { alerts.filter { $0.rigID == rig.id } }
+    func rig(id: String) -> Rig? { rigs.first { $0.id == id } }
+    func campaign(id: String) -> Campaign? { campaigns.first { $0.id == id } }
+    func jobs(in campaign: Campaign) -> [Job] { jobs.filter { $0.campaignID == campaign.id } }
+
+    /// The campaign a rig is actively working, else its first campaign.
+    func activeCampaign(on rig: Rig) -> Campaign? {
+        let mine = campaigns(on: rig)
+        return mine.first { $0.percentComplete ?? 0 < 1 && !jobsRunning(in: $0).isEmpty } ?? mine.first
     }
 
-    func jobs(in campaign: Campaign) -> [Job] {
-        jobs.filter { $0.campaignID == campaign.id }
+    func jobsRunning(in campaign: Campaign) -> [Job] {
+        jobs(in: campaign).filter { $0.status == .running }
     }
 
-    func job(runningOn gpu: GPUStatus) -> Job? {
-        guard let jobID = gpu.currentJobID else { return nil }
-        return jobs.first { $0.id == jobID }
+    /// Best ETA across a campaign's running jobs (the batch finishes when its
+    /// slowest live job does).
+    func batchETA(for campaign: Campaign) -> (remaining: TimeInterval, windowMinutes: Int?)? {
+        jobsRunning(in: campaign).compactMap(\.eta).max { $0.remaining < $1.remaining }
     }
 
-    /// Seeds state directly, bypassing the network — for SwiftUI previews
-    /// and tests only.
-    func seed(gpus: [GPUStatus] = [], jobs: [Job] = [], campaigns: [Campaign] = [], stats: Stats? = nil) {
-        self.gpus = gpus
-        self.jobs = jobs
+    func seed(rigs: [Rig] = [], campaigns: [Campaign] = [], jobs: [Job] = [], alerts: [Alert] = []) {
+        self.rigs = rigs
         self.campaigns = campaigns
-        self.stats = stats
+        self.jobs = jobs
+        self.alerts = alerts
     }
 
-    private func noticeJobTransitions(from newJobs: [Job]) {
-        for job in newJobs {
-            let previous = previousJobStatus[job.id]
-            previousJobStatus[job.id] = job.status
-
-            guard let previous, previous != job.status else { continue }
-            switch job.status {
-            case .completed:
-                notifications.notify(title: "Job complete", body: "\(job.name) finished.")
-            case .failed:
-                notifications.notify(
-                    title: "Job failed",
-                    body: job.errorMessage.map { "\(job.name): \($0)" } ?? "\(job.name) failed."
-                )
-            default:
-                break
-            }
+    private func noticeNewAlerts(_ newAlerts: [Alert]) {
+        // The first successful poll establishes a baseline so we don't fire a
+        // notification for every already-standing alert on launch.
+        defer {
+            knownAlertIDs = Set(newAlerts.map(\.id))
+            seededAlertBaseline = true
         }
-    }
-
-    private func noticeBudgetTransition(from newStats: Stats) {
-        defer { previousBudgetCrossed = newStats.budgetCrossed }
-
-        guard let previous = previousBudgetCrossed else { return }
-        guard !previous, newStats.budgetCrossed else { return }
-
-        let costText = newStats.totalCostUSD.formatted(.currency(code: "USD"))
-        notifications.notify(title: "Budget crossed", body: "Spend has reached \(costText).")
+        guard seededAlertBaseline else { return }
+        for alert in newAlerts where !knownAlertIDs.contains(alert.id) {
+            notifications.notify(title: alert.title, body: alert.detail ?? "")
+        }
     }
 }

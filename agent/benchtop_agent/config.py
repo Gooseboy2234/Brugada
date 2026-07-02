@@ -25,28 +25,18 @@ class Settings:
     port: int = int(os.environ.get("BENCHTOP_PORT", "8420"))
 
     # Directory layout for real (non-mock) data:
-    #   data_dir/jobs.json         - job manifest (metadata that doesn't change often)
-    #   data_dir/campaigns.json    - campaign + funnel definitions
-    #   data_dir/checkpoints/*.jsonl - one file per job id, one JSON line per checkpoint
+    #   data_dir/rigs.json         - rig config (gpu, $/hr, cloud-or-home, budget)
+    #   data_dir/campaigns.json    - campaigns: hypothesis, journey funnel, live result
+    #   data_dir/jobs.json         - job manifest (tag, kind, target, metric shape)
+    #   data_dir/checkpoints/*.jsonl - one file per job id, one JSON line per heartbeat
     data_dir: Path = Path(
         os.environ.get("BENCHTOP_DATA_DIR", str(_DEFAULT_SAMPLE_DATA_DIR))
     )
 
-    # When true, GPU stats and job/campaign state are served from the sample
-    # data bundled in this repo instead of nvidia-smi / real checkpoint files.
-    # Useful for developing the app UI on a machine with no NVIDIA GPU at all.
+    # When true, everything is served from the bundled sample_data instead of
+    # nvidia-smi + checkpoint files — the easiest way to run the whole app
+    # without a GPU.
     mock: bool = _bool_env("BENCHTOP_MOCK", True)
-
-    # Used to turn GPU-hours into a $ estimate in /api/stats. Left at 0 (no
-    # cost shown) unless set — there's no universally right number here
-    # (electricity rate, amortized hardware, whatever you want it to mean).
-    cost_per_gpu_hour: float = float(os.environ.get("BENCHTOP_COST_PER_GPU_HOUR", "0"))
-
-    # Optional spending cap; /api/stats reports whether it's been crossed so
-    # the app can alert on it. Unset (None) means "no budget configured".
-    budget_usd: float | None = (
-        float(os.environ["BENCHTOP_BUDGET_USD"]) if "BENCHTOP_BUDGET_USD" in os.environ else None
-    )
 
     # mDNS/Bonjour advertisement so the app can find this agent on the LAN
     # without the user typing in an IP. Best-effort: some networks/sandboxes
@@ -57,7 +47,11 @@ class Settings:
     service_name: str = os.environ.get("BENCHTOP_SERVICE_NAME", "BenchTop Rig")
 
     @property
-    def jobs_manifest_path(self) -> Path:
+    def rigs_path(self) -> Path:
+        return self.data_dir / "rigs.json"
+
+    @property
+    def jobs_path(self) -> Path:
         return self.data_dir / "jobs.json"
 
     @property

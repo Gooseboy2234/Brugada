@@ -1,16 +1,13 @@
-"""Reads live GPU stats via nvidia-smi, or serves mock data when running on a
-machine with no NVIDIA GPU (e.g. while developing the app UI).
+"""Live GPU telemetry via nvidia-smi. Returns raw per-GPU readings that
+data.read_rigs merges into the configured Rig objects (which also carry the
+non-telemetry facts: $/hr, cloud-or-home, VRAM size).
 """
 from __future__ import annotations
 
-import json
 import shutil
 import subprocess
 
-from .config import settings
-from .models import GPUStatus
-
-_NVIDIA_SMI_FIELDS = [
+_FIELDS = [
     "index",
     "name",
     "utilization.gpu",
@@ -21,52 +18,35 @@ _NVIDIA_SMI_FIELDS = [
 ]
 
 
-def _query_nvidia_smi() -> list[GPUStatus]:
+def read_telemetry() -> list[dict]:
+    """One dict per GPU: index, name, util_percent, vram_used_gb, vram_gb,
+    temp_c, power_w. Empty list when nvidia-smi isn't available (e.g. dev box).
+    """
     binary = shutil.which("nvidia-smi")
     if binary is None:
         return []
 
-    query = ",".join(_NVIDIA_SMI_FIELDS)
+    query = ",".join(_FIELDS)
     result = subprocess.run(
         [binary, f"--query-gpu={query}", "--format=csv,noheader,nounits"],
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=5,
+        capture_output=True, text=True, check=False, timeout=5,
     )
     if result.returncode != 0:
         return []
 
-    gpus: list[GPUStatus] = []
+    out: list[dict] = []
     for line in result.stdout.strip().splitlines():
         parts = [p.strip() for p in line.split(",")]
-        if len(parts) != len(_NVIDIA_SMI_FIELDS):
+        if len(parts) != len(_FIELDS):
             continue
         index, name, util, mem_used, mem_total, temp, power = parts
-        gpus.append(
-            GPUStatus(
-                id=f"gpu-{index}",
-                index=int(index),
-                name=name,
-                utilization_percent=float(util),
-                memory_used_mb=float(mem_used),
-                memory_total_mb=float(mem_total),
-                temperature_c=float(temp),
-                power_watts=float(power),
-            )
-        )
-    return gpus
-
-
-def _mock_gpus() -> list[GPUStatus]:
-    path = settings.data_dir / "gpus.json"
-    if not path.exists():
-        return []
-    raw = json.loads(path.read_text())
-    return [GPUStatus.model_validate(entry) for entry in raw]
-
-
-def read_gpus() -> list[GPUStatus]:
-    if settings.mock:
-        return _mock_gpus()
-    return _query_nvidia_smi()
+        out.append({
+            "index": int(index),
+            "name": name,
+            "util_percent": float(util),
+            "vram_used_gb": round(float(mem_used) / 1024, 1),
+            "vram_gb": round(float(mem_total) / 1024, 1),
+            "temp_c": float(temp),
+            "power_w": float(power),
+        })
+    return out

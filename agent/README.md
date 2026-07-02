@@ -22,10 +22,10 @@ uvicorn benchtop_agent.main:app --host 0.0.0.0 --port 8420
 Then, e.g.:
 
 ```bash
-curl http://localhost:8420/api/gpus
-curl http://localhost:8420/api/jobs
+curl http://localhost:8420/api/rigs
 curl http://localhost:8420/api/campaigns
-curl http://localhost:8420/api/stats
+curl http://localhost:8420/api/jobs
+curl http://localhost:8420/api/alerts
 ```
 
 The agent also advertises itself over mDNS/Bonjour on startup (service type
@@ -35,26 +35,20 @@ under "Found on this network" instead of needing a typed-in host — see
 
 ## Run it for real, on the rig
 
-1. Point `BENCHTOP_DATA_DIR` at wherever your pipeline scripts write state
-   (see `sample_data/real_mode_example/` for the expected layout: a
-   `jobs.json` manifest, a `campaigns.json`, and one
-   `checkpoints/<job_id>.jsonl` file per job).
-2. Set `BENCHTOP_MOCK=0`.
-3. Have your pipeline scripts append one JSON line per checkpoint to
-   `checkpoints/<job_id>.jsonl` — `{"stage", "units_done", "units_total",
-   "throughput_per_hour", "timestamp"}`, optionally with `"status"`
-   (`"completed"` / `"failed"`) and `"error_message"`. That's the only
-   integration point; any job type shows up in the app automatically as long
-   as it checkpoints in this shape — you never need to go back and edit
-   `jobs.json` as a job progresses.
-
-   Status resolves in this order: an explicit `status` on the latest
-   checkpoint line wins; otherwise it's inferred as `"completed"` once
-   `units_done >= units_total`; otherwise it falls back to whatever
-   `jobs.json` declared (typically `"queued"` or `"running"`, set once when
-   the job is created). A script that can't cleanly report 100% completion
-   (or that wants to report a specific error) should just set `"status"` and
-   `"error_message"` on its last checkpoint line.
+1. Point `BENCHTOP_DATA_DIR` at where your pipeline writes state (see
+   `sample_data/real_mode_example/`): a `rigs.json` (the machine's
+   `dollars_per_hour` / `is_cloud` / `budget_usd`), a `campaigns.json`
+   (hypothesis, journey funnel, live result), a `jobs.json` (tag, kind,
+   target, metric shape), and one `checkpoints/<job_id>.jsonl` per job.
+2. Set `BENCHTOP_MOCK=0`. Rig telemetry (temp/util/VRAM/power) is then read
+   live from `nvidia-smi` and overlaid onto the configured rigs.
+3. Have each run append one JSON line per heartbeat to
+   `checkpoints/<job_id>.jsonl` — `{"units_done", "metric_value", "temp",
+   "util", "timestamp"}`. That single append is the whole integration
+   contract: the agent builds the job's metric + resource **sparklines** from
+   the recent lines, updates `units_done`, and flips a running job to `done`
+   once it reaches its target. You never edit `jobs.json` as a job
+   progresses.
 
 ```bash
 export BENCHTOP_MOCK=0
@@ -73,12 +67,14 @@ All via environment variables; every one is optional.
 |-------------------------------|-----------------------|---------|
 | `BENCHTOP_HOST`               | `0.0.0.0`             | Bind address |
 | `BENCHTOP_PORT`                | `8420`                | Bind port |
-| `BENCHTOP_MOCK`                | `1` (on)              | Serve bundled sample data instead of `nvidia-smi`/checkpoint files |
-| `BENCHTOP_DATA_DIR`            | `agent/sample_data`   | Where `jobs.json`/`campaigns.json`/`checkpoints/` live |
-| `BENCHTOP_COST_PER_GPU_HOUR`  | `0`                   | $/hour used to turn GPU-hours into a cost estimate in `/api/stats` — whatever you want that number to mean (electricity, amortized hardware, ...) |
-| `BENCHTOP_BUDGET_USD`         | unset (no budget)     | If set, `/api/stats` reports `budget_crossed` once total cost reaches it — the app alerts on the false→true transition |
-| `BENCHTOP_ADVERTISE`           | `1` (on)              | Advertise via mDNS/Bonjour. Best-effort — set to `0` to disable, or it disables itself automatically if `zeroconf` isn't installed or the network blocks multicast |
+| `BENCHTOP_MOCK`                | `1` (on)              | Serve the bundled R104Q journey instead of `nvidia-smi` + checkpoint files |
+| `BENCHTOP_DATA_DIR`            | `agent/sample_data`   | Where `rigs.json`/`campaigns.json`/`jobs.json`/`checkpoints/` live |
+| `BENCHTOP_ADVERTISE`           | `1` (on)              | Advertise via mDNS/Bonjour. Best-effort — set `0` to disable, or it disables itself if `zeroconf` isn't installed or the network blocks multicast |
 | `BENCHTOP_SERVICE_NAME`       | `BenchTop Rig`        | Name shown in the app's discovery list |
+
+Cost/budget aren't env vars — they live on each rig in `rigs.json`
+(`dollars_per_hour`, `is_cloud`, `budget_usd`), because they're a property of
+the machine, not the process. Home rigs (`is_cloud: false`) are always free.
 
 ## Tests
 
@@ -89,22 +85,20 @@ pip install -r requirements-dev.txt
 pytest tests/
 ```
 
-Covers the checkpoint-merge and status-resolution logic in `jobs.py`, the
-stats/budget computation in `stats.py` (pure function, fully deterministic),
-end-to-end checks through the actual FastAPI app, and a real mDNS
-register → independently browse round trip (skips itself gracefully rather
-than failing if the environment blocks multicast — see the module docstring
-in `tests/test_discovery.py`).
+Covers checkpoint → sparkline building in `data.py`, the honest per-rig spend
+and campaign %/alert logic in `compute.py` (pure functions), end-to-end checks
+through the actual FastAPI app, and a real mDNS register → independently browse
+round trip (skips gracefully where multicast is blocked).
 
 ## Endpoints
 
 | Method | Path             | Returns                              |
 |--------|------------------|---------------------------------------|
 | GET    | `/api/health`    | `{"status": "ok", "mode": "mock"\|"live"}` |
-| GET    | `/api/gpus`      | `GPUStatus[]`                         |
-| GET    | `/api/jobs`      | `Job[]`                               |
-| GET    | `/api/campaigns` | `Campaign[]`                          |
-| GET    | `/api/stats`     | `Stats` — GPU-hours, $ spent, budget-crossed flag, totals by unit |
+| GET    | `/api/rigs`      | `Rig[]` — telemetry + honest weekly spend (home = $0) |
+| GET    | `/api/campaigns` | `Campaign[]` — hypothesis, journey funnel, live result, weighted % |
+| GET    | `/api/jobs`      | `Job[]` — per-type metric-that-matters + sparklines + log tail |
+| GET    | `/api/alerts`    | `Alert[]` — failures, thermals, budget, completions (ranked) |
 
 Schemas are defined in `benchtop_agent/models.py` and mirrored by the Swift
 models in `../BenchTop/Sources/BenchTop/Models`.

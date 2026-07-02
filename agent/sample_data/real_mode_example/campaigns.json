@@ -1,14 +1,14 @@
 [
   {
-    "id": "campaign-r104q",
-    "name": "SCN5A-R104Q",
-    "target": "SCN5A R104Q NTD pocket",
+    "id": "r104q-replicates", "rig_id": "home", "title": "R104Q · MD replicates",
+    "hypothesis": "R104Q destabilizes the NTD core; D84N rescues it.",
     "funnel": [
-      { "name": "Enamine slice screened (ML surrogate)", "count": 1200000 },
-      { "name": "Surrogate shortlist", "count": 6000 },
-      { "name": "Docked", "count": 6000 },
-      { "name": "Passed MD triage", "count": 4800 },
-      { "name": "Shortlisted for wet lab", "count": 5 }
-    ]
+      { "index": 4, "label": "Flagship MD (n=1)", "status": "done", "detail": "mechanism seen" },
+      { "index": 5, "label": "MD replicates (n=3)", "status": "active", "detail": "error bars", "caveat": "Signal vs noise." },
+      { "index": 8, "label": "SIMULATION WALL", "status": "upcoming", "is_wall": true, "caveat": "Nothing below is GPU-knowable." },
+      { "index": 9, "label": "Wet-lab", "status": "upcoming", "caveat": "Only a wet lab confirms function." }
+    ],
+    "live_result": null,
+    "so_what": null
   }
 ]

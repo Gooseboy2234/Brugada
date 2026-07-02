@@ -1,50 +1,87 @@
 [
   {
-    "id": "job-42",
-    "campaign_id": "campaign-r104q",
-    "name": "R104Q NTD pocket MD",
-    "kind": "md_simulation",
-    "gpu_id": "gpu-0",
-    "status": "running",
-    "stage": "Production run — salt-bridge live",
-    "units_done": 63,
-    "units_total": 200,
-    "unit_label": "ns",
-    "throughput_per_hour": 22.5,
-    "started_at": "2026-06-30T12:00:00Z",
-    "last_checkpoint_at": "2026-07-02T08:00:00Z",
-    "error_message": null
+    "id": "wt-s1", "campaign_id": "r104q-replicates", "tag": "WT · seed 1", "kind": "md",
+    "status": "done", "units_done": 100, "units_total": 100, "unit_label": "ns",
+    "rate_per_day": 611, "cost_so_far": 0.0,
+    "metric": { "label": "R104–D84 min distance", "value": 3.8, "unit": "Å", "note": "n/a (WT)", "sparkline": [] }
   },
   {
-    "id": "job-41",
-    "campaign_id": "campaign-r104q",
-    "name": "Enamine slice — ML surrogate screen",
-    "kind": "ml_surrogate",
-    "gpu_id": null,
-    "status": "completed",
-    "stage": "Surrogate scoring complete",
-    "units_done": 1200000,
-    "units_total": 1200000,
-    "unit_label": "molecules",
-    "throughput_per_hour": null,
-    "started_at": "2026-06-27T09:00:00Z",
-    "last_checkpoint_at": "2026-06-29T21:00:00Z",
-    "error_message": null
+    "id": "wt-s2", "campaign_id": "r104q-replicates", "tag": "WT · seed 2", "kind": "md",
+    "status": "running", "units_done": 72, "units_total": 100, "unit_label": "ns",
+    "rate_per_day": 611, "rate_window_minutes": 20, "cost_so_far": 0.0,
+    "metric": { "label": "R104–D84 min distance", "value": 3.1, "unit": "Å", "note": "58% occupancy <4 Å",
+      "sparkline": [3.4, 3.0, 3.6, 4.8, 3.1, 2.9, 3.2, 4.1, 3.0, 3.1] },
+    "temp_spark": [58, 59, 60, 60, 61, 61, 61],
+    "util_spark": [95, 96, 94, 97, 96, 95, 94],
+    "log_tail": [
+      "step 3600000  pot -512843 kJ/mol",
+      "salt-bridge R104–D84: 3.1 Å",
+      "wrote frame 720 (72.0 ns)",
+      "ns/day 611.2  temp 61C  util 94%",
+      "checkpoint saved wt_seed2_72ns.chk"
+    ]
   },
   {
-    "id": "job-39",
-    "campaign_id": "campaign-r104q",
-    "name": "Approved-drug docking screen",
-    "kind": "docking_screen",
-    "gpu_id": null,
-    "status": "failed",
-    "stage": "Docking",
-    "units_done": 2100,
-    "units_total": 4800,
-    "unit_label": "molecules",
-    "throughput_per_hour": null,
-    "started_at": "2026-06-25T10:00:00Z",
-    "last_checkpoint_at": "2026-06-25T14:00:00Z",
-    "error_message": "OpenMM CUDA platform init failed (context creation), 2 retries exhausted"
+    "id": "wt-s3", "campaign_id": "r104q-replicates", "tag": "WT · seed 3", "kind": "md",
+    "status": "queued", "units_done": 0, "units_total": 100, "unit_label": "ns", "cost_so_far": 0.0
+  },
+  {
+    "id": "mut-s1", "campaign_id": "r104q-replicates", "tag": "R104Q · seed 1", "kind": "md",
+    "status": "done", "units_done": 100, "units_total": 100, "unit_label": "ns",
+    "rate_per_day": 611, "cost_so_far": 0.0,
+    "metric": { "label": "R104–D84 min distance", "value": 6.7, "unit": "Å", "note": "12% occupancy <4 Å", "sparkline": [] }
+  },
+  {
+    "id": "mut-s2", "campaign_id": "r104q-replicates", "tag": "R104Q · seed 2", "kind": "md",
+    "status": "running", "units_done": 68, "units_total": 100, "unit_label": "ns",
+    "rate_per_day": 604, "rate_window_minutes": 20, "cost_so_far": 0.0,
+    "metric": { "label": "R104–D84 min distance", "value": 6.9, "unit": "Å", "note": "9% occupancy <4 Å — bridge broken",
+      "sparkline": [4.2, 5.1, 6.0, 6.6, 7.1, 6.8, 7.0, 6.5, 6.9, 6.9] },
+    "temp_spark": [59, 60, 61, 61, 62, 62, 61],
+    "util_spark": [96, 95, 97, 96, 95, 96, 94],
+    "log_tail": [
+      "step 3400000  pot -511920 kJ/mol",
+      "salt-bridge R104–D84: 6.9 Å (broken)",
+      "wrote frame 680 (68.0 ns)",
+      "ns/day 604.1  temp 61C  util 94%",
+      "checkpoint saved mut_seed2_68ns.chk"
+    ]
+  },
+  {
+    "id": "mut-s3", "campaign_id": "r104q-replicates", "tag": "R104Q · seed 3", "kind": "md",
+    "status": "failed", "units_done": 8, "units_total": 100, "unit_label": "ns", "cost_so_far": 0.0,
+    "error_message": "CUDA OOM at 8 ns — reduce nonbonded cutoff or free VRAM"
+  },
+  {
+    "id": "res-s1", "campaign_id": "r104q-replicates", "tag": "rescued · seed 1", "kind": "md",
+    "status": "done", "units_done": 100, "units_total": 100, "unit_label": "ns",
+    "rate_per_day": 611, "cost_so_far": 0.0,
+    "metric": { "label": "R104–D84 min distance", "value": 3.0, "unit": "Å", "note": "71% occupancy <4 Å", "sparkline": [] }
+  },
+  {
+    "id": "res-s2", "campaign_id": "r104q-replicates", "tag": "rescued · seed 2", "kind": "md",
+    "status": "running", "units_done": 74, "units_total": 100, "unit_label": "ns",
+    "rate_per_day": 611, "rate_window_minutes": 20, "cost_so_far": 0.0,
+    "metric": { "label": "R104–D84 min distance", "value": 3.0, "unit": "Å", "note": "71% occupancy <4 Å — rescued",
+      "sparkline": [3.2, 2.9, 3.1, 3.0, 2.8, 3.1, 3.0, 2.9, 3.0, 3.0] },
+    "temp_spark": [57, 58, 59, 60, 60, 61, 60],
+    "util_spark": [95, 96, 96, 94, 95, 96, 95],
+    "log_tail": [
+      "step 3700000  pot -513402 kJ/mol",
+      "salt-bridge R104–D84: 3.0 Å (rescued)",
+      "wrote frame 740 (74.0 ns)",
+      "ns/day 611.0  temp 60C  util 95%",
+      "checkpoint saved res_seed2_74ns.chk"
+    ]
+  },
+  {
+    "id": "res-s3", "campaign_id": "r104q-replicates", "tag": "rescued · seed 3", "kind": "md",
+    "status": "queued", "units_done": 0, "units_total": 100, "unit_label": "ns", "cost_so_far": 0.0
+  },
+  {
+    "id": "flagship-md", "campaign_id": "r104q-flagship", "tag": "flagship · WT+mut+rescue", "kind": "md",
+    "status": "done", "units_done": 300, "units_total": 300, "unit_label": "ns",
+    "rate_per_day": 770, "cost_so_far": 25.0,
+    "metric": { "label": "core RMSF gap (R104Q vs WT)", "value": 37.0, "unit": "%", "note": "+37% ✓ mechanism", "sparkline": [] }
   }
 ]

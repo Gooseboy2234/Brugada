@@ -18,9 +18,10 @@ struct BenchTopApp: App {
 
     var body: some Scene {
         WindowGroup {
-            DashboardView()
+            RootView()
                 .environmentObject(config)
                 .environmentObject(store)
+                .tint(Theme.Palette.signal)
                 .task {
                     notifications.requestAuthorization()
                     store.startPolling()
